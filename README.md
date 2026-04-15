@@ -37,8 +37,6 @@ Records or receives phone-call audio → Whisper transcription → Gemini AI ext
          └────────────────────────────┘
 ```
 
----
-
 ## Project Structure
 
 ```
