@@ -1,5 +1,4 @@
 # FinSense AI 💡
-
 **Production-ready native Android AI application for financial conversation intelligence.**
 
 Records or receives phone-call audio → Whisper transcription → Gemini AI extraction → structured financial insights.
