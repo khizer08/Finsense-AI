@@ -71,13 +71,20 @@ function MainTabs() {
 export default function AppNavigator() {
   const {user, loading} = useAuth();
 
-  // Don't render anything while restoring session
-  if (loading) return null;
-
   return (
     <NavigationContainer>
       <Stack.Navigator screenOptions={{headerShown: false, animation: 'fade'}}>
-        {user ? (
+        {loading ? (
+          <Stack.Screen
+            name="Splash"
+            component={() => (
+              <View style={{flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background}}>
+                <Text style={{...typography.title, color: colors.text}}>💰 FinSense AI</Text>
+              </View>
+            )}
+            options={{animationEnabled: false}}
+          />
+        ) : user ? (
           <>
             <Stack.Screen name="Main" component={MainTabs} />
             <Stack.Screen

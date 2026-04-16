@@ -6,12 +6,14 @@
 // }
 
 
-import {Text, View} from 'react-native';
+import React from 'react';
+import AppNavigator from './src/navigation/AppNavigator';
+import {AuthProvider} from './src/services/AuthContext';
 
 export default function App() {
   return (
-    <View>
-      <Text>App Working ✅</Text>
-    </View>
+    <AuthProvider>
+      <AppNavigator />
+    </AuthProvider>
   );
 }
