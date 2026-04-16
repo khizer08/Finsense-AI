@@ -85,7 +85,7 @@ async def transcribe(file: UploadFile = File(...)):
         tmp.write(content)
 
     try:
-        # Check if this is a placeholder/test file
+        # Check if this is a placeholder/test file (for backwards compatibility)
         if content.startswith(b'RECORDING_PLACEHOLDER') or len(content) < 1000:
             logger.info(f"Placeholder/test file detected: {file.filename}")
             # Return mock response for testing
@@ -96,7 +96,7 @@ async def transcribe(file: UploadFile = File(...)):
                 processing_time=0.5,
             )
 
-        logger.info(f"Transcribing file: {file.filename} ({len(content)/1024:.1f} KB)")
+        logger.info(f"Transcribing real audio file: {file.filename} ({len(content)/1024:.1f} KB)")
         t0 = time.time()
 
         result = model.transcribe(
@@ -113,8 +113,12 @@ async def transcribe(file: UploadFile = File(...)):
         segments = result.get("segments", [])
         duration = round(segments[-1]["end"], 2) if segments else 0.0
 
+        if not transcript:
+            logger.warning(f"Whisper returned empty transcript for {file.filename}")
+            transcript = "[Inaudible or silent recording]"
+
         logger.info(
-            f"Done: {len(transcript)} chars | lang={language} | "
+            f"Transcription done: {len(transcript)} chars | lang={language} | "
             f"duration={duration}s | took={processing_time}s"
         )
 

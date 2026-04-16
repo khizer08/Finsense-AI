@@ -1,7 +1,9 @@
 # FinSense AI 💡
 **Production-ready native Android AI application for financial conversation intelligence.**
 
-Records or receives phone-call audio → Whisper transcription → Gemini AI extraction → structured financial insights.
+Records or receives phone-call audio → Whisper transcription → Gemini 2.5 AI extraction → structured financial insights.
+
+📱 **React Native (TypeScript)** • 🖥️ **Node.js/Express API** • 🐍 **Python FastAPI + Whisper** • 🧠 **Google Gemini 2.5 Flash Lite** • 🗄️ **MongoDB**
 
 ---
 
@@ -31,10 +33,10 @@ Records or receives phone-call audio → Whisper transcription → Gemini AI ext
          │  POST /transcribe          │
          └────────────────────────────┘
                        │
-         ┌─────────────▼──────────────┐
-         │  Google Gemini 1.5 Flash   │
-         │  (structured JSON output)  │
-         └────────────────────────────┘
+         ┌─────────────▼──────────────────┐
+         │  Google Gemini 2.5 Flash Lite  │
+         │  (structured JSON output)      │
+         └────────────────────────────────┘
 ```
 
 ## Project Structure
@@ -180,14 +182,14 @@ npm run dev
 # From project root
 npm install
 
-# ⚠️  Update BASE_URL in src/services/api.js:
+# ⚠️  Update BASE_URL in mobile/src/services/api.js:
 #   Android emulator → http://10.0.2.2:3000
 #   Real device      → http://<YOUR_LAN_IP>:3000
 
-# Start Metro bundler
+# Start Metro bundler (from project root)
 npx react-native start
 
-# In a new terminal — run on Android
+# In a new terminal — run on Android (from project root)
 npx react-native run-android
 ```
 
@@ -297,15 +299,32 @@ npx react-native start --reset-cache
 
 **Gradle build fails**
 ```bash
-cd android && ./gradlew clean && cd ..
+cd mobile/android && ./gradlew clean && cd ../..
 npx react-native run-android
 ```
 
+**Node backend won't start**
+- Ensure MongoDB is running locally or connection string is valid in `.env`
+- Check port 3000 is not in use: `netstat -ano | findstr :3000` (Windows) or `lsof -i :3000` (macOS/Linux)
+- Verify all required env vars are set: `MONGODB_URI`, `JWT_SECRET`, `GEMINI_API_KEY`, `AI_SERVICE_URL`
+
+**Python Whisper service fails to load**
+- Ensure `ffmpeg` is installed: `ffmpeg -version`
+- Install on Ubuntu: `sudo apt install ffmpeg`
+- Verify virtual environment is activated and all packages installed: `pip install -r requirements.txt`
+- Check Python version: `python --version` (should be ≥ 3.10)
+
 **Audio file not uploading on Android**
-Ensure `file://` prefix is present:
+Ensure `file://` prefix is present on Android:
 ```js
 uri: Platform.OS === 'android' ? `file://${recordPath}` : recordPath
 ```
+
+**Gemini API returns 404 error**
+- Verify you're using the correct model: `gemini-2.5-flash-lite`
+- Check API key has access to Gemini 2.5: https://aistudio.google.com
+- Ensure `GEMINI_API_KEY` env var is set in `backend/.env`
+- Check backend logs for `[Gemini] Calling gemini-2.5-flash-lite API...` message
 
 **Call detection not working**
 - Check `READ_PHONE_STATE` is granted in device Settings → Apps → FinSense AI → Permissions
@@ -316,5 +335,5 @@ uri: Platform.OS === 'android' ? `file://${recordPath}` : recordPath
 It is registered at the top of `index.js` — do not move it.
 
 **Network error on real device**
-Set `BASE_URL` in `src/services/api.js` to your machine's LAN IP, not `localhost`.
+Set `BASE_URL` in `mobile/src/services/api.js` to your machine's LAN IP, not `localhost`.
 Both device and machine must be on the same WiFi network.

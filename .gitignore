@@ -1,5 +1,3 @@
-backend/.env
-
 # ======================
 # 🔥 GENERAL
 # ======================
@@ -10,6 +8,16 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+lerna-debug.log*
+
+# ======================
+# 📁 BUILD & DIST
+# ======================
+build/
+dist/
+backend/dist/
+backend/build/
+mobile/dist/
 
 # ======================
 # 📱 REACT NATIVE (mobile)
@@ -25,45 +33,76 @@ mobile/ios/build/
 mobile/ios/Pods/
 mobile/ios/DerivedData/
 mobile/.expo/
-mobile/dist/
 mobile/coverage/
-
-# Metro / cache
 mobile/.metro-cache/
 mobile/.cache/
+mobile/junit.xml
 
 # ======================
 # 🖥️ BACKEND (Node)
 # ======================
 backend/node_modules/
 backend/.env
-backend/dist/
-backend/build/
 backend/logs/
 backend/tmp/
+backend/uploads/
+backend/.swc/
+backend/coverage/
+backend/.nyc_output/
 
 # ======================
 # 🤖 AI SERVICE (Python)
 # ======================
 ai-service/venv/
+ai-service/env/
 ai-service/__pycache__/
 ai-service/*.pyc
 ai-service/*.pyo
 ai-service/*.pyd
 ai-service/.env
+ai-service/.venv/
+ai-service/.mypy_cache/
+ai-service/.pytest_cache/
+ai-service/dist/
+ai-service/build/
+ai-service/*.egg-info/
+ai-service/models/
 
 # ======================
 # 🧠 PYTHON GENERAL
 # ======================
 __pycache__/
 *.py[cod]
+*.so
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
 *.sqlite3
+.env.local
+.venv/
 
 # ======================
-# 💻 OS FILES
+# 📊 TEST & COVERAGE
 # ======================
+coverage/
+.nyc_output/
+.coverage
+hunter.sqlite
+.pytest_cache/
+.hypothesis/
+
+# ======================
+# 💾 RUNTIME FILES
+# ======================
+*.pid
+*.seed
+*.pid.lock
 .DS_Store
 Thumbs.db
+ehthumbs.db
+desktop.ini
 
 # ======================
 # 🧪 IDE / EDITOR
@@ -72,11 +111,28 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+*~
+.project
+.classpath
+*.sublime-project
+*.sublime-workspace
 
 # ======================
-# 🔐 SECRETS
+# 🔐 SECRETS & KEYS
 # ======================
 *.key
 *.pem
 *.p12
 *.jks
+*.keystore
+.env.local
+.env.*.local
+secrets.json
+
+# ======================
+# 📦 PACKAGE MANAGERS
+# ======================
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+poetry.lock
