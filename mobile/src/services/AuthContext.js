@@ -27,15 +27,29 @@ export function AuthProvider({children}) {
   };
 
   const login = async (email, password) => {
-    const res = await api.post('/api/auth/login', {email, password});
-    await StorageService.setItem('token', res.data.token);
-    setUser(res.data.user);
+    try {
+      console.log('Logging in with:', email);
+      const res = await api.post('/api/auth/login', {email, password});
+      console.log('Login successful:', res.data);
+      await StorageService.setItem('token', res.data.token);
+      setUser(res.data.user);
+    } catch (err) {
+      console.error('Login failed:', err.response?.data || err.message);
+      throw err;
+    }
   };
 
   const register = async (name, email, password) => {
-    const res = await api.post('/api/auth/register', {name, email, password});
-    await StorageService.setItem('token', res.data.token);
-    setUser(res.data.user);
+    try {
+      console.log('Registering user:', email);
+      const res = await api.post('/api/auth/register', {name, email, password});
+      console.log('Register successful:', res.data);
+      await StorageService.setItem('token', res.data.token);
+      setUser(res.data.user);
+    } catch (err) {
+      console.error('Register failed:', err.response?.data || err.message);
+      throw err;
+    }
   };
 
   const logout = async () => {

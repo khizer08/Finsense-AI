@@ -8,6 +8,7 @@ export function useAudioRecorder() {
   const [recordPath, setRecordPath] = useState(null);
   const timerRef = useRef(null);
   const startTimeRef = useRef(null);
+  const recordPathRef = useRef(null); // Keep ref to ensure we always have the path
 
   // Request permissions on Android
   useEffect(() => {
@@ -39,12 +40,27 @@ export function useAudioRecorder() {
       const filename = `recording-${Date.now()}.m4a`;
       const filePath = `${tempDir}/${filename}`;
 
+      console.log('Recording to:', filePath);
+
       // Create directory if needed
-      await RNFS.mkdir(tempDir).catch(() => {});
+      try {
+        await RNFS.mkdir(tempDir);
+      } catch (e) {
+        console.log('Directory already exists or error creating it:', e);
+      }
 
-      // Create a mock audio file (placeholder content)
-      await RNFS.writeFile(filePath, 'RECORDING_PLACEHOLDER', 'utf8');
+      // Write placeholder audio file with base64 data
+      // This is minimal MP4 audio data
+      const audioBase64 = 'AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAAIZnJlZQAAA/BtZGF0';
+      await RNFS.writeFile(filePath, audioBase64, 'base64');
 
+      // Verify file was created
+      const exists = await RNFS.exists(filePath);
+      if (!exists) {
+        throw new Error('Failed to create recording file');
+      }
+
+      recordPathRef.current = filePath;
       startTimeRef.current = Date.now();
       setIsRecording(true);
       setRecordPath(filePath);
@@ -54,9 +70,11 @@ export function useAudioRecorder() {
         setElapsedMs(Date.now() - startTimeRef.current);
       }, 100);
 
-      console.log('Recording started at:', filePath);
+      console.log('Recording started successfully');
     } catch (err) {
       setIsRecording(false);
+      recordPathRef.current = null;
+      console.error('Start recording error:', err);
       throw new Error(`Failed to start recording: ${err.message}`);
     }
   };
@@ -65,31 +83,45 @@ export function useAudioRecorder() {
     try {
       if (timerRef.current) clearInterval(timerRef.current);
 
-      if (!isRecording || !recordPath) {
-        throw new Error('No active recording');
+      // Use ref to get the actual path (more reliable than state)
+      const path = recordPathRef.current || recordPath;
+      
+      if (!path) {
+        throw new Error('No active recording - path not found');
+      }
+
+      console.log('Stopping recording at:', path);
+
+      // Verify file exists before stopping
+      const fileExists = await RNFS.exists(path);
+      console.log('File exists check:', fileExists);
+      
+      if (!fileExists) {
+        throw new Error('Recording file was not created');
       }
 
       setIsRecording(false);
-
-      // Verify file exists
-      const fileExists = await RNFS.exists(recordPath);
-      if (!fileExists) {
-        throw new Error('Recording file not created');
-      }
-
-      console.log('Recording stopped:', recordPath);
-      return recordPath;
+      console.log('Recording stopped successfully');
+      
+      return path;
     } catch (err) {
       setIsRecording(false);
+      console.error('Stop recording error:', err);
       throw new Error(`Failed to stop recording: ${err.message}`);
     }
   };
 
   const discardRecording = () => {
     if (timerRef.current) clearInterval(timerRef.current);
-    if (recordPath) {
-      RNFS.unlink(recordPath).catch(() => {});
+    
+    const path = recordPathRef.current || recordPath;
+    if (path) {
+      RNFS.unlink(path).catch(err => {
+        console.log('Error deleting recording:', err);
+      });
     }
+    
+    recordPathRef.current = null;
     setRecordPath(null);
     setElapsedMs(0);
     setIsRecording(false);

@@ -43,16 +43,19 @@ async function extractInsights(transcript) {
     return {summary: '', entities: [], keywords: [], actionItems: []};
   }
 
-  const model = genAI.getGenerativeModel({model: 'gemini-1.5-flash'});
+  const model = genAI.getGenerativeModel({model: 'gemini-2.5-flash-lite'});
 
   const prompt = `${SYSTEM_PROMPT}\n\nTranscript:\n${transcript}`;
 
   let raw;
   try {
+    console.log('[Gemini] Calling gemini-2.5-flash-lite API with transcript length:', transcript.length);
     const result = await model.generateContent(prompt);
     raw = result.response.text().trim();
+    console.log('[Gemini] API response received:', raw.substring(0, 100) + '...');
   } catch (err) {
-    console.error('[Gemini] API error:', err.message);
+    console.error('[Gemini] API error:', err);
+    console.error('[Gemini] API key present:', !!process.env.GEMINI_API_KEY);
     throw new Error('Gemini API call failed: ' + err.message);
   }
 

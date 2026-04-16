@@ -51,8 +51,15 @@ export default function AuthScreen() {
         await register(form.name.trim(), form.email.trim(), form.password);
       }
     } catch (err) {
-      const msg =
-        err.response?.data?.error || 'Something went wrong. Please try again.';
+      console.error('Auth error:', err);
+      let msg = 'Something went wrong. Please try again.';
+      
+      if (err.response?.data?.error) {
+        msg = err.response.data.error;
+      } else if (err.message) {
+        msg = err.message;
+      }
+      
       Alert.alert('Error', msg);
     } finally {
       setLoading(false);
