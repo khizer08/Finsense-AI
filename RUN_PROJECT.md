@@ -1,3 +1,14 @@
+# FinSense AI - How to install the apk (Quick Guide)
+
+1. connect to USB cable and allow file transfer
+2. enable developer option on device (ask gpt it will guide)
+3. type "developer options" in mobile setting and enable 
+"USB debugging" and "Install via USB"
+4. run this command in project:-
+PS C:\Dev\Finsense-AI> adb install -r C:\Dev\Finsense-AI\mobile\android\app\build\outputs\apk\debug\app-debug.apk
+5. install in mobile
+
+
 # FinSense AI - How to Run the Project (Quick Guide)
 
 ## 🚀 3 Terminals Required (Keep All Running)
