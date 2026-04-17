@@ -4,7 +4,7 @@
  *
  * Features:
  *  - Post-call prompt: "Did you discuss finances?"
- *  - Deadline reminders (<48h / <24h)  [ready for future use]
+ *  - Deadline reminders with urgency levels (<48h / <24h)
  */
 import notifee, {
   AndroidImportance,
@@ -14,7 +14,9 @@ import notifee, {
 
 export const CHANNELS = {
   CALLS: 'finsense_calls',
-  DEADLINES: 'finsense_deadlines',
+  DEADLINES_URGENT: 'finsense_deadlines_urgent',  // <24h
+  DEADLINES_WARNING: 'finsense_deadlines_warning', // <48h
+  DEADLINES_INFO: 'finsense_deadlines_info',      // >48h
 };
 
 // ─── Setup ──────────────────────────────────────────────────────────────────
@@ -29,17 +31,35 @@ export async function setupNotifications() {
   });
 
   await notifee.createChannel({
-    id: CHANNELS.DEADLINES,
-    name: 'Deadline Alerts',
+    id: CHANNELS.DEADLINES_URGENT,
+    name: 'Urgent Payment Deadlines',
+    importance: AndroidImportance.MAX,
+    vibration: true,
+    sound: 'default',
+    lightColor: '#EF4444', // Red
+  });
+
+  await notifee.createChannel({
+    id: CHANNELS.DEADLINES_WARNING,
+    name: 'Payment Deadline Warnings',
     importance: AndroidImportance.HIGH,
     vibration: true,
+    sound: 'default',
+    lightColor: '#F97316', // Orange
+  });
+
+  await notifee.createChannel({
+    id: CHANNELS.DEADLINES_INFO,
+    name: 'Payment Deadline Information',
+    importance: AndroidImportance.DEFAULT,
+    vibration: false,
     sound: 'default',
   });
 }
 
-// ─── Post-call notification ─────────────────────────────────────────────────
+// ─── Post-call notification with storage prompt ────────────────────────────
 /**
- * Show "Did you discuss finances in that call?" prompt.
+ * Show "Did you discuss finances in that call?" prompt with storage options.
  * Called automatically by CallDetectionService when a call ends.
  */
 export async function showPostCallNotification() {
@@ -67,77 +87,125 @@ export async function showPostCallNotification() {
   });
 }
 
-// ─── Deadline reminders ─────────────────────────────────────────────────────
+// ─── Deadline reminders with urgency levels ──────────────────────────────────
 /**
- * Schedule a deadline reminder notification.
+ * Schedule deadline reminder notifications based on urgency.
+ * Urgency is determined by time until due date:
+ * - <24h:  CRITICAL (red, max importance)
+ * - <48h:  HIGH (orange, high importance)  
+ * - >=48h: INFO (blue, default importance)
  *
- * @param {string} id       - unique identifier (e.g. conversationId + '_48h')
- * @param {string} title    - notification title
- * @param {string} body     - notification body
- * @param {Date}   fireDate - exact Date when notification should fire
+ * @param {Object} paymentDeadline - {description, dueDate, daysUntilDue, requiresAction}
+ * @param {string} conversationId - Unique ID for tracking
+ * @returns {Promise<void>}
  */
-export async function scheduleDeadlineReminder(id, title, body, fireDate) {
-  const trigger = {
-    type: TriggerType.TIMESTAMP,
-    timestamp: fireDate.getTime(),
-    alarmManager: {allowWhileIdle: true},
-  };
+export async function scheduleDeadlineNotification(paymentDeadline, conversationId) {
+  if (!paymentDeadline.requiresAction) {
+    console.log('[Notifications] Skipping non-actionable deadline:', paymentDeadline.description);
+    return;
+  }
 
-  await notifee.createTriggerNotification(
-    {
-      id,
-      title,
-      body,
-      android: {
-        channelId: CHANNELS.DEADLINES,
-        importance: AndroidImportance.HIGH,
-        smallIcon: 'ic_launcher',
-        color: '#EF4444',
-        pressAction: {id: 'default'},
-      },
+  const {description, daysUntilDue} = paymentDeadline;
+  
+  if (daysUntilDue === null || daysUntilDue === undefined) {
+    console.log('[Notifications] Cannot schedule - daysUntilDue is missing:', description);
+    return;
+  }
+
+  // Determine urgency and channel
+  let channelId, title, bodyPrefix, color;
+  
+  if (daysUntilDue < 1) {
+    // Overdue
+    channelId = CHANNELS.DEADLINES_URGENT;
+    title = '🚨 OVERDUE PAYMENT';
+    bodyPrefix = 'URGENT:';
+    color = '#DC2626'; // Dark red
+  } else if (daysUntilDue < 1) {
+    // <24h
+    channelId = CHANNELS.DEADLINES_URGENT;
+    title = '⚠️  Payment Due Today';
+    bodyPrefix = 'Due TODAY:';
+    color = '#EF4444'; // Red
+  } else if (daysUntilDue <= 2) {
+    // <48h
+    channelId = CHANNELS.DEADLINES_WARNING;
+    title = '⏰ Payment Due Soon';
+    bodyPrefix = `Due in ${daysUntilDue} day${daysUntilDue === 1 ? '' : 's'}:`;
+    color = '#F97316'; // Orange
+  } else {
+    // >=48h
+    channelId = CHANNELS.DEADLINES_INFO;
+    title = '📌 Payment Reminder';
+    bodyPrefix = `Due in ${daysUntilDue} days:`;
+    color = '#3B82F6'; // Blue
+  }
+
+  // Schedule notification to show immediately
+  const notificationId = `${conversationId}_${description.replace(/\s+/g, '_').substring(0, 30)}`;
+  
+  await notifee.displayNotification({
+    id: notificationId,
+    title,
+    body: `${bodyPrefix} ${description}`,
+    android: {
+      channelId,
+      smallIcon: 'ic_launcher',
+      color,
+      pressAction: {id: 'default'},
+      importance: channelId === CHANNELS.DEADLINES_URGENT ? AndroidImportance.MAX : 
+                   channelId === CHANNELS.DEADLINES_WARNING ? AndroidImportance.HIGH :
+                   AndroidImportance.DEFAULT,
+      actions: [
+        {
+          title: '✓ Mark Done',
+          pressAction: {id: 'mark_done'},
+        },
+        {
+          title: 'Snooze',
+          pressAction: {id: 'snooze'},
+        },
+      ],
     },
-    trigger,
-  );
+  });
+
+  console.log('[Notifications] Scheduled deadline notification:', {
+    id: notificationId,
+    urgency: channelId,
+    daysUntilDue,
+    description,
+  });
 }
+}
+
 
 /**
  * Cancel a previously scheduled deadline reminder.
  * @param {string} id
  */
 export async function cancelDeadlineReminder(id) {
-  await notifee.cancelTriggerNotification(id);
+  await notifee.cancelNotification(id);
 }
 
 /**
- * Schedule smart reminders for an action item deadline.
- * Fires at T-48h (warning) and T-24h (urgent).
- *
- * @param {string} conversationId
- * @param {string} actionText
- * @param {Date}   deadline
+ * Legacy function - kept for backward compatibility
+ * Use scheduleDeadlineNotification() instead for new code
  */
 export async function scheduleSmartDeadlineReminders(conversationId, actionText, deadline) {
-  const now = Date.now();
-  const deadlineMs = deadline.getTime();
+  console.warn('[Notifications] scheduleSmartDeadlineReminders is deprecated. Use scheduleDeadlineNotification()');
+  
+  const now = new Date();
+  const daysUntilDue = Math.floor((deadline.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 
-  const minus48h = new Date(deadlineMs - 48 * 60 * 60 * 1000);
-  const minus24h = new Date(deadlineMs - 24 * 60 * 60 * 1000);
-
-  if (minus48h.getTime() > now) {
-    await scheduleDeadlineReminder(
-      `${conversationId}_48h`,
-      '⏰ Deadline Reminder',
-      `In 48 hours: ${actionText}`,
-      minus48h,
-    );
-  }
-
-  if (minus24h.getTime() > now) {
-    await scheduleDeadlineReminder(
-      `${conversationId}_24h`,
-      '🚨 Urgent Deadline',
-      `Due tomorrow: ${actionText}`,
-      minus24h,
+  if (daysUntilDue >= 0) {
+    await scheduleDeadlineNotification(
+      {
+        description: actionText,
+        dueDate: deadline.toISOString(),
+        daysUntilDue,
+        requiresAction: true,
+      },
+      conversationId,
     );
   }
 }

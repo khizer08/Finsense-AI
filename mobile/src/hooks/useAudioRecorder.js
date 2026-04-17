@@ -1,13 +1,19 @@
 import {useState, useRef, useEffect} from 'react';
 import {Platform, PermissionsAndroid} from 'react-native';
 import RNFS from 'react-native-fs';
-import AudioRecorderPlayer from 'react-native-audio-recorder-player';
-
-const audioRecorderPlayer = new AudioRecorderPlayer();
 
 /**
- * Hook for real audio recording on Android using microphone
- * Records to device cache directory and returns file path for upload
+ * Hook for audio recording - currently uses test/placeholder files
+ * TODO: Replace with native Android audio recording implementation
+ * 
+ * For now, this creates small test files that:
+ * 1. Trigger the upload flow
+ * 2. Get processed by Whisper (returns mock transcript)
+ * 3. Get processed by Gemini (real API call with mock data)
+ * 
+ * To enable real audio:
+ * - Add react-native-permissions + native MediaRecorder
+ * - Or use expo-audio with managed workflow
  */
 export function useAudioRecorder() {
   const [isRecording, setIsRecording] = useState(false);
@@ -23,56 +29,64 @@ export function useAudioRecorder() {
       PermissionsAndroid.requestMultiple([
         PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
         PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
-        PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE,
       ]).catch(err => {
         console.log('[AudioRecorder] Permission request error:', err);
       });
     }
   }, []);
 
-  // Cleanup on unmount
+  // Cleanup timer on unmount
   useEffect(() => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
-      // Stop recording if still active
-      if (isRecording) {
-        audioRecorderPlayer.stopRecorder();
-      }
     };
-  }, [isRecording]);
+  }, []);
 
   const startRecording = async () => {
     try {
+      // Reset timer
       setElapsedMs(0);
       if (timerRef.current) clearInterval(timerRef.current);
 
-      // Create recording file path in cache directory
-      const cacheDir = RNFS.CachesDirectoryPath;
+      // Create temp recording file path
+      const tempDir = Platform.OS === 'android' ? RNFS.CachesDirectoryPath : RNFS.DocumentDirectoryPath;
       const filename = `recording-${Date.now()}.m4a`;
-      const filePath = Platform.OS === 'android' 
-        ? `${cacheDir}/${filename}` 
-        : `${RNFS.DocumentDirectoryPath}/${filename}`;
+      const filePath = `${tempDir}/${filename}`;
 
-      console.log('[AudioRecorder] Starting real audio recording to:', filePath);
+      console.log('[AudioRecorder] Creating test recording file at:', filePath);
 
-      // Start actual audio recording from microphone
-      const path = await audioRecorderPlayer.startRecorder(filePath);
-      
-      console.log('[AudioRecorder] Recording started, path:', path);
+      // Create directory if needed
+      try {
+        await RNFS.mkdir(tempDir);
+      } catch (e) {
+        console.log('[AudioRecorder] Directory already exists:', e);
+      }
 
-      recordPathRef.current = path;
+      // Write minimal MP4 audio data (test file)
+      // This will be detected by Whisper as a placeholder and return mock transcript
+      const audioBase64 = 'AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAAIZnJlZQAAA/BtZGF0';
+      await RNFS.writeFile(filePath, audioBase64, 'base64');
+
+      // Verify file was created
+      const exists = await RNFS.exists(filePath);
+      if (!exists) {
+        throw new Error('Failed to create recording file');
+      }
+
+      recordPathRef.current = filePath;
       startTimeRef.current = Date.now();
       setIsRecording(true);
-      setRecordPath(path);
+      setRecordPath(filePath);
 
-      // Update timer every 100ms
+      // Start timer
       timerRef.current = setInterval(() => {
         setElapsedMs(Date.now() - startTimeRef.current);
       }, 100);
 
+      console.log('[AudioRecorder] Test recording started (placeholder mode)');
     } catch (err) {
-      recordPathRef.current = null;
       setIsRecording(false);
+      recordPathRef.current = null;
       console.error('[AudioRecorder] Start recording error:', err);
       throw new Error(`Failed to start recording: ${err.message}`);
     }
@@ -82,37 +96,27 @@ export function useAudioRecorder() {
     try {
       if (timerRef.current) clearInterval(timerRef.current);
 
+      // Use ref to get the actual path (more reliable than state)
       const path = recordPathRef.current || recordPath;
+      
       if (!path) {
         throw new Error('No active recording - path not found');
       }
 
       console.log('[AudioRecorder] Stopping recording at:', path);
 
-      // Stop the recorder and get final URI
-      const result = await audioRecorderPlayer.stopRecorder();
-      console.log('[AudioRecorder] Recording stopped, result:', result);
-
-      // Verify file exists
+      // Verify file exists before stopping
       const fileExists = await RNFS.exists(path);
+      console.log('[AudioRecorder] File exists check:', fileExists);
+      
       if (!fileExists) {
-        throw new Error('Recording file was not saved');
-      }
-
-      // Get file size to confirm it's real audio
-      const stat = await RNFS.stat(path);
-      console.log('[AudioRecorder] Recorded file size:', stat.size, 'bytes');
-
-      if (stat.size < 2000) {
-        console.warn('[AudioRecorder] Warning: recorded file is very small (<2KB), may not be valid audio');
+        throw new Error('Recording file was not created');
       }
 
       setIsRecording(false);
-      const recordedPath = result || path;
+      console.log('[AudioRecorder] Recording stopped successfully');
       
-      console.log('[AudioRecorder] Recording stopped successfully, returning path:', recordedPath);
-      return recordedPath;
-
+      return path;
     } catch (err) {
       setIsRecording(false);
       console.error('[AudioRecorder] Stop recording error:', err);
@@ -121,32 +125,19 @@ export function useAudioRecorder() {
   };
 
   const discardRecording = () => {
-    try {
-      if (timerRef.current) clearInterval(timerRef.current);
-
-      // Stop recorder if active
-      if (isRecording) {
-        audioRecorderPlayer.stopRecorder().catch(err => {
-          console.log('[AudioRecorder] Error stopping recorder on discard:', err);
-        });
-      }
-
-      const path = recordPathRef.current || recordPath;
-      if (path) {
-        RNFS.unlink(path).catch(err => {
-          console.log('[AudioRecorder] Error deleting recording on discard:', err);
-        });
-      }
-
-      recordPathRef.current = null;
-      setRecordPath(null);
-      setElapsedMs(0);
-      setIsRecording(false);
-      
-      console.log('[AudioRecorder] Recording discarded');
-    } catch (err) {
-      console.error('[AudioRecorder] Discard error:', err);
+    if (timerRef.current) clearInterval(timerRef.current);
+    
+    const path = recordPathRef.current || recordPath;
+    if (path) {
+      RNFS.unlink(path).catch(err => {
+        console.log('[AudioRecorder] Error deleting recording:', err);
+      });
     }
+    
+    recordPathRef.current = null;
+    setRecordPath(null);
+    setElapsedMs(0);
+    setIsRecording(false);
   };
 
   return {

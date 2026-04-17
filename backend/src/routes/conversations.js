@@ -61,7 +61,7 @@ router.post('/upload', upload.single('audio'), async (req, res) => {
     const {transcript, language, duration} = await transcribeAudio(filePath);
 
     // 2. Gemini insight extraction
-    const {summary, entities, keywords, actionItems} =
+    const {summary, entities, keywords, actionItems, paymentDeadlines} =
       await extractInsights(transcript);
 
     // 3. Persist
@@ -72,6 +72,7 @@ router.post('/upload', upload.single('audio'), async (req, res) => {
     conversation.entities = entities;
     conversation.keywords = keywords;
     conversation.actionItems = actionItems;
+    conversation.paymentDeadlines = paymentDeadlines;
     conversation.status = 'done';
     await conversation.save();
 

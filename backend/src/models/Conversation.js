@@ -6,11 +6,27 @@ const EntitySchema = new mongoose.Schema(
   {
     type: {
       type: String,
-      enum: ['SIP', 'EMI', 'loan', 'budget', 'deadline', 'other'],
+      enum: ['SIP', 'EMI', 'loan', 'budget', 'deadline', 'credit_card', 'insurance', 'tax', 'bill', 'investment', 'other'],
       default: 'other',
     },
     value: {type: String, trim: true},
     amount: {type: Number, default: null},
+    deadline: {type: String, default: null},
+    urgency: {
+      type: String,
+      enum: ['critical', 'high', 'medium', 'low'],
+      default: null,
+    },
+  },
+  {_id: false},
+);
+
+const PaymentDeadlineSchema = new mongoose.Schema(
+  {
+    description: {type: String, trim: true},
+    dueDate: {type: String, default: null},
+    daysUntilDue: {type: Number, default: null},
+    requiresAction: {type: Boolean, default: false},
   },
   {_id: false},
 );
@@ -34,6 +50,7 @@ const ConversationSchema = new mongoose.Schema(
     entities: {type: [EntitySchema], default: []},
     keywords: {type: [String], default: []},
     actionItems: {type: [String], default: []},
+    paymentDeadlines: {type: [PaymentDeadlineSchema], default: []},
 
     // Audio metadata
     audioFileName: {type: String, default: ''},

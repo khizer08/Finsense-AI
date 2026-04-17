@@ -6,41 +6,57 @@ const {GoogleGenerativeAI} = require('@google/generative-ai');
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-const SYSTEM_PROMPT = `You are a financial conversation analyst.
-Analyze the following conversation transcript and extract structured financial information.
+const SYSTEM_PROMPT = `You are an expert financial conversation analyst specializing in payment deadlines and financial obligations.
+Analyze the following conversation transcript and extract structured financial information with high accuracy.
 
 Return ONLY a valid JSON object — no markdown, no code fences, no extra text.
 
 JSON format:
 {
-  "summary": "2-3 sentence summary of the conversation",
+  "summary": "2-3 sentence summary of the conversation focusing on key financial topics and deadlines",
   "entities": [
     {
-      "type": "SIP|EMI|loan|budget|deadline|other",
-      "value": "brief description",
-      "amount": <number or null>
+      "type": "SIP|EMI|loan|budget|deadline|credit_card|insurance|tax|bill|investment|other",
+      "value": "brief description (e.g., 'EMI payment for home loan')",
+      "amount": <number or null>,
+      "deadline": "YYYY-MM-DD HH:MM or relative time (e.g., '15 days', '2026-04-25') or null",
+      "urgency": "critical|high|medium|low|null"
     }
   ],
   "keywords": ["keyword1", "keyword2"],
-  "actionItems": ["action item 1", "action item 2"]
+  "actionItems": ["action item 1", "action item 2"],
+  "paymentDeadmines": [
+    {
+      "description": "what payment is due",
+      "dueDate": "exact date if mentioned or null",
+      "daysUntilDue": <number or null>,
+      "requiresAction": true|false
+    }
+  ]
 }
 
-Rules:
-- "entities" must only include items with clear financial relevance.
-- "amount" should be a number (no currency symbol). Use null if no amount is mentioned.
-- "actionItems" are concrete next steps mentioned or implied in the conversation.
-- If the transcript contains no financial content, return empty arrays and a short summary.
-- Do NOT invent information not present in the transcript.`;
+Extraction Rules:
+1. **Deadline Detection**: Extract ANY mentioned dates, durations ("by end of month", "in 2 weeks", etc.)
+   - Convert relative times to approximate dates where possible
+   - Mark if deadline is URGENT (<24h), HIGH (<48h), or lower priority
+2. **Amount Extraction**: Extract all numeric values associated with financial items
+   - Remove currency symbols; keep only the number
+3. **Entity Types**: Classify as SIP, EMI, loan, credit_card, insurance, tax payment, bill, investment, budget, deadline, or other
+4. **Payment Deadlines**: Extract and explicitly list all payment deadlines with urgency levels
+5. **Action Items**: Focus on concrete, time-sensitive actions (e.g., "Pay ₹50,000 by 25th")
+6. **Summary**: Highlight critical dates and payment obligations prominently
+7. **Validation**: Do NOT invent information. If no deadline is mentioned, set to null.
+8. **Fallback**: If transcript is non-financial or unclear, return short summary with empty arrays.`;
 
 /**
  * Extract financial insights from a transcript using Gemini.
  *
  * @param {string} transcript
- * @returns {Promise<{summary, entities, keywords, actionItems}>}
+ * @returns {Promise<{summary, entities, keywords, actionItems, paymentDeadlines}>}
  */
 async function extractInsights(transcript) {
   if (!transcript || transcript.trim().length === 0) {
-    return {summary: '', entities: [], keywords: [], actionItems: []};
+    return {summary: '', entities: [], keywords: [], actionItems: [], paymentDeadlines: []};
   }
 
   const model = genAI.getGenerativeModel({model: 'gemini-2.5-flash-lite'});
@@ -77,6 +93,7 @@ async function extractInsights(transcript) {
       entities: [],
       keywords: [],
       actionItems: [],
+      paymentDeadlines: [],
     };
   }
 
@@ -85,6 +102,7 @@ async function extractInsights(transcript) {
     entities: Array.isArray(parsed.entities) ? parsed.entities : [],
     keywords: Array.isArray(parsed.keywords) ? parsed.keywords : [],
     actionItems: Array.isArray(parsed.actionItems) ? parsed.actionItems : [],
+    paymentDeadlines: Array.isArray(parsed.paymentDeadmines) ? parsed.paymentDeadmines : [],
   };
 }
 
