@@ -113,7 +113,7 @@ export default function RecordScreen({navigation}) {
       formData.append('audio', {
         uri: Platform.OS === 'android' ? `file://${recordPath}` : recordPath,
         type: Platform.OS === 'android' ? 'audio/mp4' : 'audio/m4a',
-        name: `recording-${Date.now()}.${Platform.OS === 'android' ? 'mp4' : 'm4a'}`,
+        name: `recording-${Date.now()}.m4a`,
       });
 
       setStatusMsg('Transcribing with Whisper…');

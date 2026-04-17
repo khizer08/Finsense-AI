@@ -11,7 +11,7 @@ PS C:\Dev\Finsense-AI> adb install -r C:\Dev\Finsense-AI\mobile\android\app\buil
 
 # FinSense AI - How to Run the Project (Quick Guide)
 
-## 🚀 3 Terminals Required (Keep All Running)
+## 🚀 4 Terminals Required For Full Recording Analysis
 
 ### **Terminal 1: Metro Bundler (JavaScript Bundler)**
 ```bash
@@ -45,7 +45,24 @@ Server running on http://localhost:3000
 
 ---
 
-### **Terminal 3: React Native Run (Optional - for initial build only)**
+### **Terminal 3: AI Service (Whisper Transcription)**
+```bash
+cd c:\Dev\Finsense-AI\ai-service
+venv\Scripts\activate
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+**What to expect:**
+```
+Whisper model loaded ✅
+Uvicorn running on http://0.0.0.0:8000
+```
+
+✅ **Keep this running** - Real recording analysis depends on this service
+
+---
+
+### **Terminal 4: React Native Run (Optional - for initial build only)**
 ```bash
 cd c:\Dev\Finsense-AI\mobile
 npx react-native run-android
@@ -83,7 +100,15 @@ That's it! Your phone will reload JavaScript from Terminal 1 (Metro).
    ```
    Wait for "Server running" ✅
 
-3. **On your phone:**
+3. **Open Terminal 3:**
+   ```bash
+   cd c:\Dev\Finsense-AI\ai-service
+   venv\Scripts\activate
+   uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+   ```
+   Wait for "Whisper model loaded" ✅
+
+4. **On your phone:**
    - Shake device → **Reload JS**
    - Done! 🎉
 
@@ -136,6 +161,7 @@ Every time you work on the project:
 - [ ] USB cable connected to phone
 - [ ] Terminal 1 running: `npm start` (Mobile)
 - [ ] Terminal 2 running: `npm start` (Backend)
+- [ ] Terminal 3 running: `uvicorn main:app --host 0.0.0.0 --port 8000 --reload` (AI Service)
 - [ ] Phone showing app (with Reload button ready)
 - [ ] Backend showing "Server running"
 - [ ] Metro showing "Dev server ready"
@@ -146,9 +172,15 @@ Every time you work on the project:
 
 ### "Network Error" on phone?
 - [ ] Check Terminal 2 (Backend) is running
+- [ ] Check Terminal 3 (AI Service) is running if analysis fails after upload
 - [ ] Check phone is connected: `adb devices`
 - [ ] Check API URL is correct: `http://192.168.0.6:3000` in api.js
 - [ ] Reload app: Shake phone → Reload JS
+
+### "[Conversations] Processing error" during analysis?
+- [ ] Start Terminal 3 (AI Service) from `c:\Dev\Finsense-AI\ai-service`
+- [ ] Verify `backend\.env` has `AI_SERVICE_URL=http://localhost:8000`
+- [ ] Retry after backend restart
 
 ### "Unable to load script" on phone?
 - [ ] Check Terminal 1 (Metro) is running
@@ -189,7 +221,8 @@ Then restart terminals.
 |----------|---------|------|-----------------|
 | 1 (Metro) | Bundles your JavaScript code | 8081 | `cd c:\Dev\Finsense-AI\mobile && npm start` |
 | 2 (Backend) | API server + database | 3000 | `cd c:\Dev\Finsense-AI\backend && npm start` |
-| 3 (React Native) | Initial build/install | - | `cd c:\Dev\Finsense-AI\mobile && npx react-native run-android` |
+| 3 (AI Service) | Whisper transcription service | 8000 | `cd c:\Dev\Finsense-AI\ai-service && venv\Scripts\activate && uvicorn main:app --host 0.0.0.0 --port 8000 --reload` |
+| 4 (React Native) | Initial build/install | - | `cd c:\Dev\Finsense-AI\mobile && npx react-native run-android` |
 
 ---
 

@@ -84,7 +84,7 @@ router.post('/upload', upload.single('audio'), async (req, res) => {
       conversation,
     });
   } catch (err) {
-    console.error('[Conversations] Processing error:', err.message);
+    console.error('[Conversations] Processing error:', err);
 
     // Mark as error but don't delete — may want to retry
     conversation.status = 'error';
@@ -92,7 +92,7 @@ router.post('/upload', upload.single('audio'), async (req, res) => {
     await conversation.save().catch(() => {});
 
     return res.status(500).json({
-      error: 'Failed to process audio: ' + err.message,
+      error: 'Failed to process audio: ' + (err.message || 'Unknown processing error'),
     });
   }
 });
