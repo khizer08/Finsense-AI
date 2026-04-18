@@ -143,14 +143,15 @@ If it says `offline`, unplug and replug USB.
 
 ---
 
-## 📞 Port Forwarding (Already Done)
+## 📞 Backend Address
 
 The app on your phone connects to your computer at:
 ```
-http://192.168.0.6:3000
+http://192.168.0.5:3000
 ```
 
-This is set in: `mobile/src/services/api.js`
+In development, `mobile/src/services/api.js` now auto-detects the Metro host and uses that machine IP for the backend.
+If auto-detection is unavailable, it falls back to `http://192.168.0.5:3000`.
 
 ---
 
@@ -174,7 +175,8 @@ Every time you work on the project:
 - [ ] Check Terminal 2 (Backend) is running
 - [ ] Check Terminal 3 (AI Service) is running if analysis fails after upload
 - [ ] Check phone is connected: `adb devices`
-- [ ] Check API URL is correct: `http://192.168.0.6:3000` in api.js
+- [ ] Confirm your phone and computer are on the same Wi-Fi
+- [ ] Reload the app so it picks up the current backend IP
 - [ ] Reload app: Shake phone → Reload JS
 
 ### "[Conversations] Processing error" during analysis?
@@ -208,7 +210,7 @@ Then restart terminals.
 
 ## 📝 Your Device Info
 
-**Your Computer IP**: `192.168.0.6`  
+**Your Computer IP**: `192.168.0.5`  
 **Your Phone Device ID**: `3C15A10011Q00000`  
 **Metro Port**: `8081`  
 **Backend Port**: `3000`
