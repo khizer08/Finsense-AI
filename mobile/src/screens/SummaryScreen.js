@@ -1,4 +1,4 @@
-import React, {useState, useEffect} from 'react';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
   View,
   Text,
@@ -10,32 +10,54 @@ import {
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import api from '../services/api';
+import {scheduleConversationReminders} from '../services/NotificationService';
 import {
-  EntityTag,
   ActionItem,
-  SectionHeader,
+  Button,
   Card,
+  EntityTag,
+  LoadingOverlay,
+  SectionHeader,
 } from '../components/UIComponents';
-import {formatFullDate, formatRecordingLength} from '../utils/formatters';
+import {
+  formatDateTime,
+  formatFullDate,
+  formatRecordingLength,
+  formatReminderStatus,
+} from '../utils/formatters';
 import {colors, typography, spacing, radius} from '../components/theme';
 
 export default function SummaryScreen({route, navigation}) {
-  const {conversation: passedConversation, conversationId} =
+  const {conversation: passedConversation, conversationId, promptPlanReminderId} =
     route.params || {};
 
-  const [conversation, setConversation] = useState(
-    passedConversation || null,
-  );
+  const [conversation, setConversation] = useState(passedConversation || null);
   const [loading, setLoading] = useState(!passedConversation);
   const [showFullTranscript, setShowFullTranscript] = useState(false);
+  const [creatingPlan, setCreatingPlan] = useState(false);
+  const promptedPlanRef = useRef(null);
 
-  useEffect(() => {
-    if (!passedConversation && conversationId) {
-      fetchConversation(conversationId);
-    }
-  }, [conversationId]);
+  const actionableReminders = useMemo(
+    () =>
+      (conversation?.reminderJobs || []).filter(
+        reminder => reminder.kind !== 'plan_prompt',
+      ),
+    [conversation],
+  );
+  const planPrompts = useMemo(
+    () =>
+      (conversation?.reminderJobs || []).filter(
+        reminder =>
+          reminder.kind === 'plan_prompt' && reminder.status === 'pending',
+      ),
+    [conversation],
+  );
+  const latestPlan = useMemo(() => {
+    const plans = conversation?.financialPlans || [];
+    return plans.length > 0 ? plans[plans.length - 1] : null;
+  }, [conversation]);
 
-  const fetchConversation = async id => {
+  const fetchConversation = useCallback(async id => {
     try {
       const res = await api.get(`/api/conversations/${id}`);
       setConversation(res.data.conversation);
@@ -45,9 +67,77 @@ export default function SummaryScreen({route, navigation}) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [navigation]);
 
-  // ─── Loading ────────────────────────────────────────────────────────────────
+  const handleCreatePlan = useCallback(async reminder => {
+    if (!conversation?._id) {
+      return;
+    }
+
+    setCreatingPlan(true);
+    try {
+      const res = await api.post(`/api/conversations/${conversation._id}/plan`, {
+        reminderId: reminder?._id || reminder?.id,
+      });
+
+      await scheduleConversationReminders(res.data.conversation);
+      setConversation(res.data.conversation);
+      navigation.navigate('FinancialPlan', {
+        plan: res.data.plan,
+        conversationId: conversation._id,
+      });
+    } catch (error) {
+      const message =
+        error.response?.data?.error ||
+        error.message ||
+        'Failed to create financial plan';
+      Alert.alert('Plan Error', message);
+    } finally {
+      setCreatingPlan(false);
+    }
+  }, [conversation, navigation]);
+
+  useEffect(() => {
+    if (!passedConversation && conversationId) {
+      fetchConversation(conversationId);
+    }
+  }, [conversationId, fetchConversation, passedConversation]);
+
+  useEffect(() => {
+    if (planPrompts.length === 0 || latestPlan) {
+      return;
+    }
+
+    const selectedPrompt =
+      planPrompts.find(
+        reminder =>
+          String(reminder._id || reminder.id) === String(promptPlanReminderId || ''),
+      ) || planPrompts[0];
+
+    const selectedId = String(selectedPrompt?._id || selectedPrompt?.id || '');
+    if (!selectedId || promptedPlanRef.current === selectedId) {
+      return;
+    }
+
+    promptedPlanRef.current = selectedId;
+
+    const horizonLabel = selectedPrompt.planHorizonMonths
+      ? `${selectedPrompt.planHorizonMonths}-month`
+      : 'multi-month';
+
+    Alert.alert(
+      'Create a plan?',
+      `Gemini identified a ${horizonLabel} planning workflow here. Should we create it now?`,
+      [
+        {text: 'Later', style: 'cancel'},
+        {
+          text: 'Create Plan',
+          onPress: () => handleCreatePlan(selectedPrompt),
+        },
+      ],
+    );
+  }, [handleCreatePlan, latestPlan, planPrompts, promptPlanReminderId]);
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -63,8 +153,6 @@ export default function SummaryScreen({route, navigation}) {
 
   return (
     <SafeAreaView style={styles.container}>
-
-      {/* ── Nav bar ── */}
       <View style={styles.navBar}>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
@@ -81,11 +169,7 @@ export default function SummaryScreen({route, navigation}) {
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}>
-
-        {/* ── Date & meta ── */}
-        <Text style={styles.date}>
-          {formatFullDate(conversation.createdAt)}
-        </Text>
+        <Text style={styles.date}>{formatFullDate(conversation.createdAt)}</Text>
         {conversation.duration > 0 && (
           <Text style={styles.meta}>
             🕐 {formatRecordingLength(conversation.duration)}
@@ -94,7 +178,6 @@ export default function SummaryScreen({route, navigation}) {
           </Text>
         )}
 
-        {/* ── Summary ── */}
         <Card style={styles.summaryCard}>
           <SectionHeader title="Summary" />
           <Text style={styles.summaryText}>
@@ -102,20 +185,100 @@ export default function SummaryScreen({route, navigation}) {
           </Text>
         </Card>
 
-        {/* ── Action items ── */}
+        {planPrompts.length > 0 && !latestPlan && (
+          <View style={styles.section}>
+            <SectionHeader title="Suggested Plans" count={planPrompts.length} />
+            {planPrompts.map(prompt => (
+              <Card key={String(prompt._id || prompt.id)} style={styles.planPromptCard}>
+                <Text style={styles.planPromptTitle}>{prompt.title}</Text>
+                <Text style={styles.planPromptBody}>
+                  {prompt.description || 'Gemini recommends creating a plan for this conversation.'}
+                </Text>
+                {prompt.planHorizonMonths ? (
+                  <Text style={styles.planPromptMeta}>
+                    Horizon: {prompt.planHorizonMonths} months
+                  </Text>
+                ) : null}
+                <Button
+                  title="Create Plan"
+                  onPress={() => handleCreatePlan(prompt)}
+                  style={{marginTop: spacing.sm}}
+                />
+              </Card>
+            ))}
+          </View>
+        )}
+
+        {latestPlan && (
+          <View style={styles.section}>
+            <SectionHeader title="Financial Plan" />
+            <Card>
+              <Text style={styles.planPromptTitle}>{latestPlan.title}</Text>
+              <Text style={styles.planPromptBody}>
+                {latestPlan.summary || 'Financial plan created successfully.'}
+              </Text>
+              <Button
+                title="Open Plan"
+                onPress={() =>
+                  navigation.navigate('FinancialPlan', {
+                    plan: latestPlan,
+                    conversationId: conversation._id,
+                  })
+                }
+                style={{marginTop: spacing.sm}}
+              />
+            </Card>
+          </View>
+        )}
+
+        {actionableReminders.length > 0 && (
+          <View style={styles.section}>
+            <SectionHeader title="Reminder Jobs" count={actionableReminders.length} />
+            {actionableReminders.map(reminder => (
+              <Card key={String(reminder._id || reminder.id)} style={styles.reminderCard}>
+                <View style={styles.reminderHeader}>
+                  <Text style={styles.reminderTitle}>{reminder.title}</Text>
+                  <View style={styles.reminderBadge}>
+                    <Text style={styles.reminderBadgeText}>
+                      {formatReminderStatus(reminder.status)}
+                    </Text>
+                  </View>
+                </View>
+                {!!reminder.description && (
+                  <Text style={styles.reminderDescription}>
+                    {reminder.description}
+                  </Text>
+                )}
+                <Text style={styles.reminderMeta}>
+                  Due: {formatDateTime(reminder.dueAt)}
+                </Text>
+                {reminder.recurrence && reminder.recurrence !== 'once' && (
+                  <Text style={styles.reminderMeta}>
+                    Repeats: {reminder.recurrence}
+                  </Text>
+                )}
+                {reminder.checkInAt && (
+                  <Text style={styles.reminderMeta}>
+                    Check-in: {formatDateTime(reminder.checkInAt)}
+                  </Text>
+                )}
+              </Card>
+            ))}
+          </View>
+        )}
+
         {conversation.actionItems?.length > 0 && (
           <View style={styles.section}>
             <SectionHeader
               title="Action Items"
               count={conversation.actionItems.length}
             />
-            {conversation.actionItems.map((item, i) => (
-              <ActionItem key={i} text={item} />
+            {conversation.actionItems.map((item, index) => (
+              <ActionItem key={index} text={item} />
             ))}
           </View>
         )}
 
-        {/* ── Financial entities ── */}
         {conversation.entities?.length > 0 && (
           <View style={styles.section}>
             <SectionHeader
@@ -123,17 +286,21 @@ export default function SummaryScreen({route, navigation}) {
               count={conversation.entities.length}
             />
             <Card>
-              {conversation.entities.map((e, i) => (
+              {conversation.entities.map((entity, index) => (
                 <View
-                  key={i}
+                  key={index}
                   style={[
                     styles.entityRow,
-                    i < conversation.entities.length - 1 &&
+                    index < conversation.entities.length - 1 &&
                       styles.entityDivider,
                   ]}>
-                  <EntityTag type={e.type} value="" amount={e.amount} />
+                  <EntityTag
+                    type={entity.type}
+                    value=""
+                    amount={entity.amount}
+                  />
                   <Text style={styles.entityValue} numberOfLines={2}>
-                    {e.value}
+                    {entity.value}
                   </Text>
                 </View>
               ))}
@@ -141,21 +308,19 @@ export default function SummaryScreen({route, navigation}) {
           </View>
         )}
 
-        {/* ── Keywords ── */}
         {conversation.keywords?.length > 0 && (
           <View style={styles.section}>
             <SectionHeader title="Keywords" />
             <View style={styles.keywordsRow}>
-              {conversation.keywords.map((k, i) => (
-                <View key={i} style={styles.keyword}>
-                  <Text style={styles.keywordText}>{k}</Text>
+              {conversation.keywords.map((keyword, index) => (
+                <View key={index} style={styles.keyword}>
+                  <Text style={styles.keywordText}>{keyword}</Text>
                 </View>
               ))}
             </View>
           </View>
         )}
 
-        {/* ── Transcript ── */}
         <View style={styles.section}>
           <SectionHeader title="Transcript" />
           <Card>
@@ -167,7 +332,7 @@ export default function SummaryScreen({route, navigation}) {
             {transcriptLong && (
               <TouchableOpacity
                 style={styles.expandBtn}
-                onPress={() => setShowFullTranscript(v => !v)}>
+                onPress={() => setShowFullTranscript(value => !value)}>
                 <Text style={styles.expandBtnText}>
                   {showFullTranscript ? '▲ Show less' : '▼ Show full transcript'}
                 </Text>
@@ -178,14 +343,14 @@ export default function SummaryScreen({route, navigation}) {
 
         <View style={{height: spacing.xxl}} />
       </ScrollView>
+
+      {creatingPlan && <LoadingOverlay message="Creating your plan with Gemini…" />}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {flex: 1, backgroundColor: colors.background},
-
-  // Loading
   loadingContainer: {
     flex: 1,
     alignItems: 'center',
@@ -193,8 +358,6 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   loadingText: {...typography.body, color: colors.textSecondary},
-
-  // Nav bar
   navBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -213,8 +376,6 @@ const styles = StyleSheet.create({
   },
   backIcon: {fontSize: 24, color: colors.primary},
   navTitle: {...typography.h4, flex: 1, textAlign: 'center'},
-
-  // Content
   content: {padding: spacing.lg},
   date: {...typography.h3, marginBottom: spacing.xs},
   meta: {
@@ -222,19 +383,39 @@ const styles = StyleSheet.create({
     color: colors.textTertiary,
     marginBottom: spacing.lg,
   },
-
-  // Summary
   summaryCard: {marginBottom: spacing.lg},
   summaryText: {
     ...typography.body,
     color: colors.textSecondary,
     lineHeight: 26,
   },
-
-  // Section
   section: {marginBottom: spacing.lg},
-
-  // Entities
+  planPromptCard: {gap: spacing.xs},
+  planPromptTitle: {...typography.h4},
+  planPromptBody: {...typography.body, color: colors.textSecondary},
+  planPromptMeta: {...typography.bodySmall, color: colors.textTertiary},
+  reminderCard: {marginBottom: spacing.sm},
+  reminderHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.xs,
+    gap: spacing.sm,
+  },
+  reminderTitle: {...typography.h4, flex: 1},
+  reminderDescription: {...typography.body, color: colors.textSecondary},
+  reminderMeta: {
+    ...typography.bodySmall,
+    color: colors.textTertiary,
+    marginTop: spacing.xs,
+  },
+  reminderBadge: {
+    backgroundColor: colors.primaryLight,
+    borderRadius: radius.full,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  reminderBadgeText: {...typography.label, color: colors.primary},
   entityRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -249,8 +430,6 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     flex: 1,
   },
-
-  // Keywords
   keywordsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -263,8 +442,6 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   keywordText: {...typography.label, color: colors.primary},
-
-  // Transcript
   transcriptText: {
     ...typography.body,
     color: colors.textSecondary,

@@ -1,6 +1,7 @@
 import React, {createContext, useContext, useState, useEffect} from 'react';
 import {StorageService} from './StorageService';
 import api from './api';
+import {syncReminderSchedules} from './NotificationService';
 
 const AuthContext = createContext(null);
 
@@ -18,6 +19,7 @@ export function AuthProvider({children}) {
       if (token) {
         const res = await api.get('/api/auth/me');
         setUser(res.data.user);
+        await syncReminderSchedules();
       }
     } catch {
       await StorageService.removeItem('token');
@@ -33,6 +35,7 @@ export function AuthProvider({children}) {
       console.log('Login successful:', res.data);
       await StorageService.setItem('token', res.data.token);
       setUser(res.data.user);
+      await syncReminderSchedules();
     } catch (err) {
       console.error('Login failed:', err.response?.data || err.message);
       throw err;
@@ -46,6 +49,7 @@ export function AuthProvider({children}) {
       console.log('Register successful:', res.data);
       await StorageService.setItem('token', res.data.token);
       setUser(res.data.user);
+      await syncReminderSchedules();
     } catch (err) {
       console.error('Register failed:', err.response?.data || err.message);
       throw err;

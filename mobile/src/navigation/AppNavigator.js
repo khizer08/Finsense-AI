@@ -9,6 +9,7 @@ import AuthScreen from '../screens/AuthScreen';
 import TimelineScreen from '../screens/TimelineScreen';
 import RecordScreen from '../screens/RecordScreen';
 import SummaryScreen from '../screens/SummaryScreen';
+import FinancialPlanScreen from '../screens/FinancialPlanScreen';
 import {colors, typography} from '../components/theme';
 
 const Stack = createNativeStackNavigator();
@@ -90,6 +91,11 @@ export default function AppNavigator() {
             <Stack.Screen
               name="Summary"
               component={SummaryScreen}
+              options={{animation: 'slide_from_right'}}
+            />
+            <Stack.Screen
+              name="FinancialPlan"
+              component={FinancialPlanScreen}
               options={{animation: 'slide_from_right'}}
             />
           </>

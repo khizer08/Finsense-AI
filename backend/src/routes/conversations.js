@@ -5,7 +5,8 @@ const fs = require('fs');
 const authMiddleware = require('../middleware/auth');
 const Conversation = require('../models/Conversation');
 const {transcribeAudio} = require('../services/whisper');
-const {extractInsights} = require('../services/gemini');
+const {extractInsights, generateFinancialPlan} = require('../services/gemini');
+const {buildReminderJobs} = require('../services/reminderPlanner');
 
 const router = express.Router();
 
@@ -40,6 +41,9 @@ router.post('/upload', upload.single('audio'), async (req, res) => {
   }
 
   const filePath = req.file.path;
+  const referenceDate = req.body.referenceDate || new Date().toISOString();
+  const timeZone = req.body.timeZone || 'UTC';
+  const timezoneOffsetMinutes = Number(req.body.timezoneOffsetMinutes || 0);
 
   // Create a placeholder doc so the client can track status
   let conversation;
@@ -47,6 +51,8 @@ router.post('/upload', upload.single('audio'), async (req, res) => {
     conversation = await Conversation.create({
       userId: req.userId,
       audioFileName: req.file.filename,
+      timeZone,
+      timezoneOffsetMinutes,
       status: 'processing',
     });
   } catch (err) {
@@ -61,8 +67,23 @@ router.post('/upload', upload.single('audio'), async (req, res) => {
     const {transcript, language, duration} = await transcribeAudio(filePath);
 
     // 2. Gemini insight extraction
-    const {summary, entities, keywords, actionItems, paymentDeadlines} =
-      await extractInsights(transcript);
+    const {
+      summary,
+      entities,
+      keywords,
+      actionItems,
+      paymentDeadlines,
+      reminderTemplates,
+    } = await extractInsights(transcript, {
+      referenceDate,
+      timeZone,
+      utcOffset: _toUtcOffsetString(timezoneOffsetMinutes),
+    });
+    const reminderJobs = buildReminderJobs(reminderTemplates, {
+      referenceDate,
+      timeZone,
+      timezoneOffsetMinutes,
+    });
 
     // 3. Persist
     conversation.transcript = transcript;
@@ -73,6 +94,7 @@ router.post('/upload', upload.single('audio'), async (req, res) => {
     conversation.keywords = keywords;
     conversation.actionItems = actionItems;
     conversation.paymentDeadlines = paymentDeadlines;
+    conversation.reminderJobs = reminderJobs;
     conversation.status = 'done';
     await conversation.save();
 
@@ -93,6 +115,52 @@ router.post('/upload', upload.single('audio'), async (req, res) => {
 
     return res.status(500).json({
       error: 'Failed to process audio: ' + (err.message || 'Unknown processing error'),
+    });
+  }
+});
+
+// ─── POST /api/conversations/:id/plan ───────────────────────────────────────
+router.post('/:id/plan', async (req, res) => {
+  try {
+    const {reminderId} = req.body || {};
+    const conversation = await Conversation.findOne({
+      _id: req.params.id,
+      userId: req.userId,
+    });
+
+    if (!conversation) {
+      return res.status(404).json({error: 'Conversation not found'});
+    }
+
+    const reminder = reminderId ? conversation.reminderJobs.id(reminderId) : null;
+    const horizonMonths = reminder?.planHorizonMonths || 3;
+
+    const plan = await generateFinancialPlan(conversation, {
+      horizonMonths,
+      reminderTitle: reminder?.title || 'Financial plan',
+    });
+
+    conversation.financialPlans.push({
+      ...plan,
+      sourceReminderId: reminder?._id || null,
+    });
+
+    if (reminder) {
+      reminder.status = 'done';
+      reminder.completedAt = new Date();
+    }
+
+    await conversation.save();
+
+    return res.status(201).json({
+      message: 'Financial plan created successfully',
+      plan: conversation.financialPlans[conversation.financialPlans.length - 1],
+      conversation,
+    });
+  } catch (err) {
+    console.error('[Conversations] plan error:', err);
+    return res.status(500).json({
+      error: 'Failed to create financial plan: ' + (err.message || 'Unknown error'),
     });
   }
 });
@@ -160,3 +228,16 @@ router.delete('/:id', async (req, res) => {
 });
 
 module.exports = router;
+
+function _toUtcOffsetString(offsetMinutes) {
+  if (!Number.isFinite(offsetMinutes)) {
+    return '+00:00';
+  }
+
+  const totalMinutes = -offsetMinutes;
+  const sign = totalMinutes >= 0 ? '+' : '-';
+  const absoluteMinutes = Math.abs(totalMinutes);
+  const hours = String(Math.floor(absoluteMinutes / 60)).padStart(2, '0');
+  const minutes = String(absoluteMinutes % 60).padStart(2, '0');
+  return `${sign}${hours}:${minutes}`;
+}

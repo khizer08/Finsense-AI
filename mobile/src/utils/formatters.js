@@ -79,6 +79,38 @@ export function formatRecordingLength(seconds) {
 }
 
 /**
+ * Format a Date to short date and time string.
+ * @param {string|Date} dateInput
+ * @returns {string}
+ */
+export function formatDateTime(dateInput) {
+  const date = new Date(dateInput);
+  return date.toLocaleString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+/**
+ * Format reminder status into readable copy.
+ * @param {string} status
+ * @returns {string}
+ */
+export function formatReminderStatus(status) {
+  switch (status) {
+    case 'done':
+      return 'Completed';
+    case 'dismissed':
+      return 'Dismissed';
+    default:
+      return 'Pending';
+  }
+}
+
+/**
  * Truncate a string with ellipsis.
  * @param {string} str
  * @param {number} maxLen

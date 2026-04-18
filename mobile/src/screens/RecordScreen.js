@@ -14,6 +14,7 @@ import {SafeAreaView} from 'react-native-safe-area-context';
 import RNFS from 'react-native-fs';
 import {useAudioRecorder} from '../hooks/useAudioRecorder';
 import api from '../services/api';
+import {scheduleConversationReminders} from '../services/NotificationService';
 import {formatDuration} from '../utils/formatters';
 import {colors, typography, spacing, radius, shadows} from '../components/theme';
 import {Button} from '../components/UIComponents';
@@ -109,12 +110,19 @@ export default function RecordScreen({navigation}) {
     setStatusMsg('Uploading audio…');
 
     try {
+      const referenceDate = new Date().toISOString();
+      const timeZone =
+        Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+      const timezoneOffsetMinutes = String(new Date().getTimezoneOffset());
       const formData = new FormData();
       formData.append('audio', {
         uri: Platform.OS === 'android' ? `file://${recordPath}` : recordPath,
         type: Platform.OS === 'android' ? 'audio/mp4' : 'audio/m4a',
         name: `recording-${Date.now()}.m4a`,
       });
+      formData.append('referenceDate', referenceDate);
+      formData.append('timeZone', timeZone);
+      formData.append('timezoneOffsetMinutes', timezoneOffsetMinutes);
 
       setStatusMsg('Transcribing with Whisper…');
 
@@ -124,6 +132,7 @@ export default function RecordScreen({navigation}) {
       });
 
       setStatusMsg('Extracting insights with Gemini…');
+      await scheduleConversationReminders(res.data.conversation);
 
       // Clean up temp file
       RNFS.unlink(recordPath).catch(() => {});

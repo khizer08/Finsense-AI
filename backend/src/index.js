@@ -7,6 +7,7 @@ const fs = require('fs');
 
 const authRoutes = require('./routes/auth');
 const conversationRoutes = require('./routes/conversations');
+const reminderRoutes = require('./routes/reminders');
 const searchRoutes = require('./routes/search');
 
 const app = express();
@@ -26,6 +27,7 @@ app.use('/uploads', express.static(uploadsDir));
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/conversations', conversationRoutes);
+app.use('/api/reminders', reminderRoutes);
 app.use('/api/search', searchRoutes);
 
 // Health check
