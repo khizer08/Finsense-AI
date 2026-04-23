@@ -5,7 +5,7 @@ import notifee, {
   TriggerType,
 } from '@notifee/react-native';
 import api from './api';
-import {StorageService} from './StorageService';
+import { StorageService } from './StorageService';
 
 const PENDING_ROUTE_KEY = 'pending_notification_route';
 const FUTURE_TRIGGER_BUFFER_MS = 15 * 1000;
@@ -13,6 +13,7 @@ const OVERDUE_DELAY_MS = 24 * 60 * 60 * 1000;
 
 export const CHANNELS = {
   CALLS: 'finsense_calls',
+  PROCESSING: 'finsense_processing',
   REMINDER_CHECKIN: 'finsense_reminder_checkin',
   REMINDER_DUE: 'finsense_reminder_due',
   REMINDER_OVERDUE: 'finsense_reminder_overdue',
@@ -69,6 +70,14 @@ export async function setupNotifications() {
     vibration: true,
     sound: 'default',
   });
+
+  await notifee.createChannel({
+    id: CHANNELS.PROCESSING,
+    name: 'Processing Complete',
+    importance: AndroidImportance.HIGH,
+    vibration: true,
+    sound: 'default',
+  });
 }
 
 export async function showPostCallNotification() {
@@ -81,17 +90,38 @@ export async function showPostCallNotification() {
       importance: AndroidImportance.HIGH,
       smallIcon: 'ic_launcher',
       color: '#4F46E5',
-      pressAction: {id: NOTIFICATION_ACTIONS.RECORD, launchActivity: 'default'},
+      pressAction: { id: NOTIFICATION_ACTIONS.RECORD, launchActivity: 'default' },
       actions: [
         {
           title: 'Record Summary',
-          pressAction: {id: NOTIFICATION_ACTIONS.RECORD, launchActivity: 'default'},
+          pressAction: { id: NOTIFICATION_ACTIONS.RECORD, launchActivity: 'default' },
         },
         {
           title: 'Ignore',
-          pressAction: {id: NOTIFICATION_ACTIONS.IGNORE},
+          pressAction: { id: NOTIFICATION_ACTIONS.IGNORE },
         },
       ],
+    },
+  });
+}
+
+export async function showProcessingCompleteNotification(conversationId) {
+  await notifee.displayNotification({
+    title: '✅ Summary Ready',
+    body: 'Your conversation has been processed. Tap to view insights.',
+    data: {
+      conversationId: conversationId || '',
+    },
+    android: {
+      channelId: CHANNELS.PROCESSING,
+      category: AndroidCategory.RECOMMENDATION,
+      importance: AndroidImportance.HIGH,
+      smallIcon: 'ic_launcher',
+      color: '#10B981',
+      pressAction: {
+        id: NOTIFICATION_ACTIONS.OPEN_SUMMARY,
+        launchActivity: 'default',
+      },
     },
   });
 }
@@ -154,12 +184,12 @@ export async function scheduleReminderJob(reminderJob) {
 export async function cancelReminderNotifications(reminderId) {
   const ids = Object.values(_buildNotificationIds(reminderId));
 
-  await notifee.cancelTriggerNotifications(ids).catch(() => {});
-  await Promise.all(ids.map(id => notifee.cancelNotification(id).catch(() => {})));
+  await notifee.cancelTriggerNotifications(ids).catch(() => { });
+  await Promise.all(ids.map(id => notifee.cancelNotification(id).catch(() => { })));
 }
 
 export async function updateReminderStatus(reminderId, status) {
-  const response = await api.patch(`/api/reminders/${reminderId}`, {status});
+  const response = await api.patch(`/api/reminders/${reminderId}`, { status });
 
   if (status === 'done' || status === 'dismissed') {
     await cancelReminderNotifications(reminderId);
@@ -194,13 +224,13 @@ export async function handleNotificationAction(detail, options = {}) {
 
   if (actionId === NOTIFICATION_ACTIONS.IGNORE) {
     if (detail?.notification?.id) {
-      await notifee.cancelNotification(detail.notification.id).catch(() => {});
+      await notifee.cancelNotification(detail.notification.id).catch(() => { });
     }
     return null;
   }
 
   if (actionId === NOTIFICATION_ACTIONS.RECORD) {
-    return {screen: 'Main', params: {screen: 'Record'}};
+    return { screen: 'Main', params: { screen: 'Record' } };
   }
 
   if (actionId === NOTIFICATION_ACTIONS.REMINDER_DONE && reminderId) {
@@ -340,20 +370,20 @@ function _buildTaskNotification(reminder, stage) {
     stage === 'overdue'
       ? CHANNELS.REMINDER_OVERDUE
       : stage === 'checkin'
-      ? CHANNELS.REMINDER_CHECKIN
-      : CHANNELS.REMINDER_DUE;
+        ? CHANNELS.REMINDER_CHECKIN
+        : CHANNELS.REMINDER_DUE;
   const title =
     stage === 'checkin'
       ? 'Did you complete this task?'
       : stage === 'overdue'
-      ? 'Task still pending'
-      : 'Task due now';
+        ? 'Task still pending'
+        : 'Task due now';
   const bodyPrefix =
     stage === 'checkin'
       ? 'Due soon'
       : stage === 'overdue'
-      ? 'Still pending'
-      : 'Due today';
+        ? 'Still pending'
+        : 'Due today';
 
   return {
     id: ids[stage],
@@ -379,7 +409,7 @@ function _buildTaskNotification(reminder, stage) {
       actions: [
         {
           title: 'Yes, completed',
-          pressAction: {id: NOTIFICATION_ACTIONS.REMINDER_DONE},
+          pressAction: { id: NOTIFICATION_ACTIONS.REMINDER_DONE },
         },
         {
           title: 'Not yet',

@@ -2,7 +2,7 @@
  * gemini.js
  * Structured financial extraction and plan generation using Google Gemini.
  */
-const {GoogleGenerativeAI} = require('@google/generative-ai');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite';
@@ -190,7 +190,7 @@ async function extractInsights(transcript, context = {}) {
     summary: _normalizeString(parsed.summary) || cleaned.slice(0, 300),
     entities: _sanitizeEntities(parsed.entities),
     keywords: _sanitizeStringList(parsed.keywords),
-    actionItems: _sanitizeStringList(parsed.actionItems),
+    actionItems: _sanitizeActionItems(parsed.actionItems),
     paymentDeadlines,
     reminderTemplates: _sanitizeReminderTemplates(
       parsed.reminderTemplates,
@@ -259,7 +259,7 @@ async function generateFinancialPlan(conversation, options = {}) {
 
 async function _generateAndClean(prompt, transcriptLength = 0) {
   const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-  const model = genAI.getGenerativeModel({model: GEMINI_MODEL});
+  const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
 
   let raw;
   try {
@@ -429,6 +429,26 @@ function _sanitizeStringList(values) {
 
   return values
     .map(_normalizeString)
+    .filter(Boolean);
+}
+
+function _sanitizeActionItems(values) {
+  if (!Array.isArray(values)) {
+    return [];
+  }
+
+  return values
+    .map(item => {
+      if (typeof item === 'string') {
+        const text = item.trim();
+        return text ? { text, done: false } : null;
+      }
+      if (item && typeof item === 'object') {
+        const text = _normalizeString(item.text || item.value || '');
+        return text ? { text, done: !!item.done } : null;
+      }
+      return null;
+    })
     .filter(Boolean);
 }
 

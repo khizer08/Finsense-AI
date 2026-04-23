@@ -1,5 +1,14 @@
 const mongoose = require('mongoose');
 
+// ─── Action Item sub-schema ──────────────────────────────────────────────────
+const ActionItemSchema = new mongoose.Schema(
+  {
+    text: { type: String, trim: true, required: true },
+    done: { type: Boolean, default: false },
+  },
+  { _id: false },
+);
+
 // ─── Sub-schemas ─────────────────────────────────────────────────────────────
 
 const EntitySchema = new mongoose.Schema(
@@ -9,26 +18,26 @@ const EntitySchema = new mongoose.Schema(
       enum: ['SIP', 'EMI', 'loan', 'budget', 'deadline', 'credit_card', 'insurance', 'tax', 'bill', 'investment', 'other'],
       default: 'other',
     },
-    value: {type: String, trim: true},
-    amount: {type: Number, default: null},
-    deadline: {type: String, default: null},
+    value: { type: String, trim: true },
+    amount: { type: Number, default: null },
+    deadline: { type: String, default: null },
     urgency: {
       type: String,
       enum: ['critical', 'high', 'medium', 'low'],
       default: null,
     },
   },
-  {_id: false},
+  { _id: false },
 );
 
 const PaymentDeadlineSchema = new mongoose.Schema(
   {
-    description: {type: String, trim: true},
-    dueDate: {type: String, default: null},
-    daysUntilDue: {type: Number, default: null},
-    requiresAction: {type: Boolean, default: false},
+    description: { type: String, trim: true },
+    dueDate: { type: String, default: null },
+    daysUntilDue: { type: Number, default: null },
+    requiresAction: { type: Boolean, default: false },
   },
-  {_id: false},
+  { _id: false },
 );
 
 const ReminderJobSchema = new mongoose.Schema(
@@ -38,57 +47,57 @@ const ReminderJobSchema = new mongoose.Schema(
       enum: ['payment', 'investment', 'task', 'goal', 'plan_prompt', 'other'],
       default: 'task',
     },
-    title: {type: String, trim: true, required: true},
-    description: {type: String, trim: true, default: ''},
-    dueAt: {type: Date, required: true},
-    checkInAt: {type: Date, default: null},
+    title: { type: String, trim: true, required: true },
+    description: { type: String, trim: true, default: '' },
+    dueAt: { type: Date, required: true },
+    checkInAt: { type: Date, default: null },
     status: {
       type: String,
       enum: ['pending', 'done', 'dismissed'],
       default: 'pending',
     },
-    requiresCompletionCheck: {type: Boolean, default: true},
-    seriesKey: {type: String, trim: true, default: ''},
-    occurrenceIndex: {type: Number, default: 1},
+    requiresCompletionCheck: { type: Boolean, default: true },
+    seriesKey: { type: String, trim: true, default: '' },
+    occurrenceIndex: { type: Number, default: 1 },
     recurrence: {
       type: String,
       enum: ['once', 'daily', 'weekly', 'monthly', 'quarterly', 'yearly'],
       default: 'once',
     },
-    amount: {type: Number, default: null},
-    currency: {type: String, trim: true, default: 'INR'},
-    dueLabel: {type: String, trim: true, default: ''},
-    sourceText: {type: String, trim: true, default: ''},
-    planHorizonMonths: {type: Number, default: null},
-    completedAt: {type: Date, default: null},
+    amount: { type: Number, default: null },
+    currency: { type: String, trim: true, default: 'INR' },
+    dueLabel: { type: String, trim: true, default: '' },
+    sourceText: { type: String, trim: true, default: '' },
+    planHorizonMonths: { type: Number, default: null },
+    completedAt: { type: Date, default: null },
   },
-  {timestamps: false},
+  { timestamps: false },
 );
 
 const FinancialPlanMonthSchema = new mongoose.Schema(
   {
-    monthIndex: {type: Number, required: true},
-    title: {type: String, trim: true, default: ''},
-    focus: {type: String, trim: true, default: ''},
-    actions: {type: [String], default: []},
-    targetAmount: {type: Number, default: null},
-    successMetric: {type: String, trim: true, default: ''},
+    monthIndex: { type: Number, required: true },
+    title: { type: String, trim: true, default: '' },
+    focus: { type: String, trim: true, default: '' },
+    actions: { type: [String], default: [] },
+    targetAmount: { type: Number, default: null },
+    successMetric: { type: String, trim: true, default: '' },
   },
-  {_id: false},
+  { _id: false },
 );
 
 const FinancialPlanSchema = new mongoose.Schema(
   {
-    title: {type: String, trim: true, required: true},
-    summary: {type: String, trim: true, default: ''},
-    horizonMonths: {type: Number, default: 3},
-    immediateActions: {type: [String], default: []},
-    monthlyMilestones: {type: [FinancialPlanMonthSchema], default: []},
-    riskNotes: {type: [String], default: []},
-    sourceReminderId: {type: mongoose.Schema.Types.ObjectId, default: null},
-    createdAt: {type: Date, default: Date.now},
+    title: { type: String, trim: true, required: true },
+    summary: { type: String, trim: true, default: '' },
+    horizonMonths: { type: Number, default: 3 },
+    immediateActions: { type: [String], default: [] },
+    monthlyMilestones: { type: [FinancialPlanMonthSchema], default: [] },
+    riskNotes: { type: [String], default: [] },
+    sourceReminderId: { type: mongoose.Schema.Types.ObjectId, default: null },
+    createdAt: { type: Date, default: Date.now },
   },
-  {timestamps: false},
+  { timestamps: false },
 );
 
 // ─── Main schema ──────────────────────────────────────────────────────────────
@@ -103,23 +112,23 @@ const ConversationSchema = new mongoose.Schema(
     },
 
     // Raw transcript from Whisper
-    transcript: {type: String, default: ''},
+    transcript: { type: String, default: '' },
 
     // AI-generated fields from Gemini
-    summary: {type: String, default: ''},
-    entities: {type: [EntitySchema], default: []},
-    keywords: {type: [String], default: []},
-    actionItems: {type: [String], default: []},
-    paymentDeadlines: {type: [PaymentDeadlineSchema], default: []},
-    reminderJobs: {type: [ReminderJobSchema], default: []},
-    financialPlans: {type: [FinancialPlanSchema], default: []},
+    summary: { type: String, default: '' },
+    entities: { type: [EntitySchema], default: [] },
+    keywords: { type: [String], default: [] },
+    actionItems: { type: [ActionItemSchema], default: [] },
+    paymentDeadlines: { type: [PaymentDeadlineSchema], default: [] },
+    reminderJobs: { type: [ReminderJobSchema], default: [] },
+    financialPlans: { type: [FinancialPlanSchema], default: [] },
 
     // Audio metadata
-    audioFileName: {type: String, default: ''},
-    duration: {type: Number, default: 0},   // seconds
-    language: {type: String, default: 'en'},
-    timeZone: {type: String, default: 'UTC'},
-    timezoneOffsetMinutes: {type: Number, default: 0},
+    audioFileName: { type: String, default: '' },
+    duration: { type: Number, default: 0 },   // seconds
+    language: { type: String, default: 'en' },
+    timeZone: { type: String, default: 'UTC' },
+    timezoneOffsetMinutes: { type: Number, default: 0 },
 
     // Processing status
     status: {
@@ -127,15 +136,42 @@ const ConversationSchema = new mongoose.Schema(
       enum: ['processing', 'done', 'error'],
       default: 'processing',
     },
-    errorMessage: {type: String, default: ''},
+    errorMessage: { type: String, default: '' },
   },
-  {timestamps: true},
+  { timestamps: true },
+);
+
+// ─── Auto-migrate old string-format actionItems on read ──────────────────────
+function _migrateActionItems(doc) {
+  if (!doc || !Array.isArray(doc.actionItems)) return;
+  doc.actionItems = doc.actionItems.map(item => {
+    if (typeof item === 'string') {
+      return { text: item, done: false };
+    }
+    if (item && typeof item === 'object' && typeof item.text === 'string') {
+      return item;
+    }
+    // Handle item.toObject() for Mongoose docs
+    if (item?.toObject) {
+      const plain = item.toObject();
+      if (typeof plain === 'string') return { text: plain, done: false };
+      return plain;
+    }
+    return { text: String(item || ''), done: false };
+  });
+}
+
+ConversationSchema.post('find', docs => {
+  if (Array.isArray(docs)) docs.forEach(_migrateActionItems);
+});
+ConversationSchema.post('findOne', _migrateActionItems);
+ConversationSchema.post('findOneAndUpdate', _migrateActionItems
 );
 
 // ─── Text index for full-text search ─────────────────────────────────────────
 ConversationSchema.index(
-  {transcript: 'text', summary: 'text', keywords: 'text', actionItems: 'text'},
-  {name: 'conversation_text_search'},
+  { transcript: 'text', summary: 'text', keywords: 'text', 'actionItems.text': 'text' },
+  { name: 'conversation_text_search' },
 );
 
 module.exports = mongoose.model('Conversation', ConversationSchema);

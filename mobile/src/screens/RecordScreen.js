@@ -1,4 +1,4 @@
-import React, {useState, useRef, useEffect} from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,14 +10,17 @@ import {
   ScrollView,
   Platform,
 } from 'react-native';
-import {SafeAreaView} from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import RNFS from 'react-native-fs';
-import {useAudioRecorder} from '../hooks/useAudioRecorder';
+import { useAudioRecorder } from '../hooks/useAudioRecorder';
 import api from '../services/api';
-import {scheduleConversationReminders} from '../services/NotificationService';
-import {formatDuration} from '../utils/formatters';
-import {colors, typography, spacing, radius, shadows} from '../components/theme';
-import {Button} from '../components/UIComponents';
+import {
+  scheduleConversationReminders,
+  showProcessingCompleteNotification,
+} from '../services/NotificationService';
+import { formatDuration } from '../utils/formatters';
+import { colors, typography, spacing, radius, shadows } from '../components/theme';
+import { Button } from '../components/UIComponents';
 
 const PHASE = {
   IDLE: 'idle',
@@ -26,7 +29,7 @@ const PHASE = {
   UPLOADING: 'uploading',
 };
 
-export default function RecordScreen({navigation}) {
+export default function RecordScreen({ navigation }) {
   const [phase, setPhase] = useState(PHASE.IDLE);
   const [statusMsg, setStatusMsg] = useState('');
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -127,18 +130,21 @@ export default function RecordScreen({navigation}) {
       setStatusMsg('Transcribing with Whisper…');
 
       const res = await api.post('/api/conversations/upload', formData, {
-        headers: {'Content-Type': 'multipart/form-data'},
+        headers: { 'Content-Type': 'multipart/form-data' },
         timeout: 180_000, // 3 min for large recordings
       });
 
       setStatusMsg('Extracting insights with Gemini…');
       await scheduleConversationReminders(res.data.conversation);
 
+      // Notify user that processing is done
+      showProcessingCompleteNotification(res.data.conversation?._id).catch(() => { });
+
       // Clean up temp file
-      RNFS.unlink(recordPath).catch(() => {});
+      RNFS.unlink(recordPath).catch(() => { });
 
       setPhase(PHASE.IDLE);
-      navigation.navigate('Summary', {conversation: res.data.conversation});
+      navigation.navigate('Summary', { conversation: res.data.conversation });
     } catch (err) {
       setPhase(PHASE.RECORDED);
       const msg = err.response?.data?.error || err.message || 'Upload failed';
@@ -159,8 +165,8 @@ export default function RecordScreen({navigation}) {
     phase === PHASE.RECORDING
       ? colors.error
       : phase === PHASE.UPLOADING
-      ? colors.textTertiary
-      : colors.primary;
+        ? colors.textTertiary
+        : colors.primary;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -177,11 +183,11 @@ export default function RecordScreen({navigation}) {
         <View style={styles.buttonArea}>
           {phase === PHASE.RECORDING && (
             <Animated.View
-              style={[styles.pulse, {transform: [{scale: pulseAnim}]}]}
+              style={[styles.pulse, { transform: [{ scale: pulseAnim }] }]}
             />
           )}
           <TouchableOpacity
-            style={[styles.micBtn, {backgroundColor: micBgColor}]}
+            style={[styles.micBtn, { backgroundColor: micBgColor }]}
             onPress={handleMicPress}
             disabled={micDisabled}
             activeOpacity={0.85}>
@@ -201,7 +207,7 @@ export default function RecordScreen({navigation}) {
           <Text style={styles.hint}>Tap the mic to start recording</Text>
         )}
         {phase === PHASE.RECORDING && (
-          <Text style={[styles.hint, {color: colors.error}]}>
+          <Text style={[styles.hint, { color: colors.error }]}>
             Recording… tap ⏹ to stop
           </Text>
         )}
@@ -221,7 +227,7 @@ export default function RecordScreen({navigation}) {
             <Button
               title="Analyse Recording"
               onPress={handleUpload}
-              style={{marginBottom: spacing.sm}}
+              style={{ marginBottom: spacing.sm }}
             />
             <Button
               title="Discard & Re-record"
@@ -255,7 +261,7 @@ export default function RecordScreen({navigation}) {
 }
 
 const styles = StyleSheet.create({
-  container: {flex: 1, backgroundColor: colors.background},
+  container: { flex: 1, backgroundColor: colors.background },
   content: {
     flexGrow: 1,
     alignItems: 'center',
@@ -263,7 +269,7 @@ const styles = StyleSheet.create({
     paddingTop: spacing.xl,
   },
 
-  title: {...typography.h2, marginBottom: spacing.sm, textAlign: 'center'},
+  title: { ...typography.h2, marginBottom: spacing.sm, textAlign: 'center' },
   subtitle: {
     ...typography.body,
     color: colors.textSecondary,
@@ -296,7 +302,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     ...shadows.md,
   },
-  micIcon: {fontSize: 48},
+  micIcon: { fontSize: 48 },
 
   // Timer
   timer: {
@@ -306,7 +312,7 @@ const styles = StyleSheet.create({
   },
 
   // Hint
-  hint: {...typography.body, color: colors.textSecondary},
+  hint: { ...typography.body, color: colors.textSecondary },
 
   // Status box (uploading)
   statusBox: {
@@ -317,12 +323,12 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     width: '100%',
   },
-  statusEmoji: {fontSize: 36, marginBottom: spacing.sm},
-  statusText: {...typography.h4, color: colors.primary, marginBottom: spacing.xs, textAlign: 'center'},
-  statusSub: {...typography.bodySmall, color: colors.textSecondary},
+  statusEmoji: { fontSize: 36, marginBottom: spacing.sm },
+  statusText: { ...typography.h4, color: colors.primary, marginBottom: spacing.xs, textAlign: 'center' },
+  statusSub: { ...typography.bodySmall, color: colors.textSecondary },
 
   // Actions
-  actions: {width: '100%', marginTop: spacing.lg},
+  actions: { width: '100%', marginTop: spacing.lg },
 
   // Tips
   tips: {
@@ -333,8 +339,8 @@ const styles = StyleSheet.create({
     marginTop: spacing.xl,
     ...shadows.sm,
   },
-  tipsTitle: {...typography.h4, marginBottom: spacing.md, color: colors.textSecondary},
-  tipRow: {flexDirection: 'row', marginBottom: spacing.sm},
-  tipDot: {color: colors.primary, marginRight: spacing.sm, fontSize: 16, lineHeight: 24},
-  tipText: {...typography.body, color: colors.textSecondary, flex: 1},
+  tipsTitle: { ...typography.h4, marginBottom: spacing.md, color: colors.textSecondary },
+  tipRow: { flexDirection: 'row', marginBottom: spacing.sm },
+  tipDot: { color: colors.primary, marginRight: spacing.sm, fontSize: 16, lineHeight: 24 },
+  tipText: { ...typography.body, color: colors.textSecondary, flex: 1 },
 });

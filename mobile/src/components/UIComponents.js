@@ -7,10 +7,10 @@ import {
   ActivityIndicator,
   StyleSheet,
 } from 'react-native';
-import {colors, typography, spacing, radius, shadows} from './theme';
+import { colors, typography, spacing, radius, shadows } from './theme';
 
 // ─── Button ────────────────────────────────────────────────────────────────
-export function Button({title, onPress, loading, variant = 'primary', disabled, style}) {
+export function Button({ title, onPress, loading, variant = 'primary', disabled, style }) {
   const isOutline = variant === 'outline';
   const isDanger = variant === 'danger';
   return (
@@ -42,7 +42,7 @@ export function Button({title, onPress, loading, variant = 'primary', disabled, 
 }
 
 // ─── Input ─────────────────────────────────────────────────────────────────
-export function Input({label, error, style, ...props}) {
+export function Input({ label, error, style, ...props }) {
   return (
     <View style={[styles.inputWrapper, style]}>
       {label && <Text style={styles.inputLabel}>{label}</Text>}
@@ -58,7 +58,7 @@ export function Input({label, error, style, ...props}) {
 }
 
 // ─── EntityTag ─────────────────────────────────────────────────────────────
-export function EntityTag({type, value, amount}) {
+export function EntityTag({ type, value, amount }) {
   const tagColors = {
     SIP: colors.tagSIP,
     EMI: colors.tagEMI,
@@ -70,10 +70,10 @@ export function EntityTag({type, value, amount}) {
   const tc = tagColors[type] || colors.tagOther;
   const label = amount != null ? `${type} ₹${amount.toLocaleString('en-IN')}` : type;
   return (
-    <View style={[styles.tag, {backgroundColor: tc.bg}]}>
-      <Text style={[styles.tagType, {color: tc.text}]}>{label}</Text>
+    <View style={[styles.tag, { backgroundColor: tc.bg }]}>
+      <Text style={[styles.tagType, { color: tc.text }]}>{label}</Text>
       {value ? (
-        <Text style={[styles.tagValue, {color: tc.text}]} numberOfLines={1}>
+        <Text style={[styles.tagValue, { color: tc.text }]} numberOfLines={1}>
           {' · '}{value}
         </Text>
       ) : null}
@@ -82,22 +82,34 @@ export function EntityTag({type, value, amount}) {
 }
 
 // ─── ActionItem ────────────────────────────────────────────────────────────
-export function ActionItem({text}) {
+export function ActionItem({ text, done, onToggle }) {
   return (
-    <View style={styles.actionItem}>
-      <View style={styles.actionDot} />
-      <Text style={styles.actionText}>{text}</Text>
-    </View>
+    <TouchableOpacity
+      style={[styles.actionItem, done && styles.actionItemDone]}
+      onPress={onToggle}
+      activeOpacity={0.7}
+      disabled={!onToggle}>
+      <View style={[styles.actionCheckbox, done && styles.actionCheckboxDone]}>
+        {done && <Text style={styles.actionCheckmark}>✓</Text>}
+      </View>
+      <Text
+        style={[
+          styles.actionText,
+          done && styles.actionTextDone,
+        ]}>
+        {text}
+      </Text>
+    </TouchableOpacity>
   );
 }
 
 // ─── Card ──────────────────────────────────────────────────────────────────
-export function Card({children, style}) {
+export function Card({ children, style }) {
   return <View style={[styles.card, style]}>{children}</View>;
 }
 
 // ─── SectionHeader ─────────────────────────────────────────────────────────
-export function SectionHeader({title, count}) {
+export function SectionHeader({ title, count }) {
   return (
     <View style={styles.sectionHeader}>
       <Text style={styles.sectionTitle}>{title}</Text>
@@ -111,7 +123,7 @@ export function SectionHeader({title, count}) {
 }
 
 // ─── EmptyState ────────────────────────────────────────────────────────────
-export function EmptyState({icon, title, subtitle}) {
+export function EmptyState({ icon, title, subtitle }) {
   return (
     <View style={styles.emptyState}>
       <Text style={styles.emptyIcon}>{icon}</Text>
@@ -122,7 +134,7 @@ export function EmptyState({icon, title, subtitle}) {
 }
 
 // ─── LoadingOverlay ────────────────────────────────────────────────────────
-export function LoadingOverlay({message}) {
+export function LoadingOverlay({ message }) {
   return (
     <View style={styles.loadingOverlay}>
       <View style={styles.loadingBox}>
@@ -148,14 +160,14 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: colors.primary,
   },
-  buttonDanger: {backgroundColor: colors.error},
-  buttonDisabled: {opacity: 0.5},
-  buttonText: {...typography.h4, color: '#fff'},
-  buttonTextOutline: {color: colors.primary},
-  buttonTextDanger: {color: '#fff'},
+  buttonDanger: { backgroundColor: colors.error },
+  buttonDisabled: { opacity: 0.5 },
+  buttonText: { ...typography.h4, color: '#fff' },
+  buttonTextOutline: { color: colors.primary },
+  buttonTextDanger: { color: '#fff' },
 
   // Input
-  inputWrapper: {marginBottom: spacing.md},
+  inputWrapper: { marginBottom: spacing.md },
   inputLabel: {
     ...typography.label,
     color: colors.textSecondary,
@@ -171,8 +183,8 @@ const styles = StyleSheet.create({
     ...typography.body,
     backgroundColor: colors.surface,
   },
-  inputError: {borderColor: colors.error},
-  inputErrorText: {...typography.caption, color: colors.error, marginTop: 4},
+  inputError: { borderColor: colors.error },
+  inputErrorText: { ...typography.caption, color: colors.error, marginTop: 4 },
 
   // Tag
   tag: {
@@ -184,8 +196,8 @@ const styles = StyleSheet.create({
     marginRight: spacing.xs,
     marginBottom: spacing.xs,
   },
-  tagType: {...typography.label, fontSize: 11},
-  tagValue: {fontSize: 11, fontWeight: '400', maxWidth: 120},
+  tagType: { ...typography.label, fontSize: 11 },
+  tagValue: { fontSize: 11, fontWeight: '400', maxWidth: 120 },
 
   // Action item
   actionItem: {
@@ -206,7 +218,7 @@ const styles = StyleSheet.create({
     marginTop: 6,
     marginRight: 10,
   },
-  actionText: {...typography.body, color: colors.actionText, flex: 1},
+  actionText: { ...typography.body, color: colors.actionText, flex: 1 },
 
   // Card
   card: {
@@ -222,7 +234,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: spacing.sm,
   },
-  sectionTitle: {...typography.h4},
+  sectionTitle: { ...typography.h4 },
   sectionBadge: {
     backgroundColor: colors.primaryLight,
     borderRadius: radius.full,
@@ -230,12 +242,12 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     marginLeft: spacing.sm,
   },
-  sectionBadgeText: {...typography.label, color: colors.primary},
+  sectionBadgeText: { ...typography.label, color: colors.primary },
 
   // Empty state
-  emptyState: {alignItems: 'center', paddingVertical: spacing.xxl},
-  emptyIcon: {fontSize: 48, marginBottom: spacing.md},
-  emptyTitle: {...typography.h3, marginBottom: spacing.sm},
+  emptyState: { alignItems: 'center', paddingVertical: spacing.xxl },
+  emptyIcon: { fontSize: 48, marginBottom: spacing.md },
+  emptyTitle: { ...typography.h3, marginBottom: spacing.sm },
   emptySubtitle: {
     ...typography.body,
     color: colors.textSecondary,
@@ -259,5 +271,5 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     minWidth: 160,
   },
-  loadingText: {...typography.body, color: colors.textSecondary, textAlign: 'center'},
+  loadingText: { ...typography.body, color: colors.textSecondary, textAlign: 'center' },
 });
