@@ -97,6 +97,27 @@ export default function SummaryScreen({route, navigation}) {
     }
   }, [conversation, navigation]);
 
+  const handleToggleActionItem = async (index) => {
+    try {
+      const currentItem = conversation.actionItems[index];
+      const newDoneState = !currentItem.done;
+      
+      const updatedActionItems = [...conversation.actionItems];
+      updatedActionItems[index] = { ...currentItem, done: newDoneState };
+      setConversation({ ...conversation, actionItems: updatedActionItems });
+
+      const res = await api.patch(`/api/conversations/${conversation._id}/action-items/${index}`, {
+        done: newDoneState
+      });
+      setConversation(res.data.conversation);
+    } catch (err) {
+      Alert.alert('Error', 'Failed to update action item');
+      if (conversation._id) {
+        fetchConversation(conversation._id);
+      }
+    }
+  };
+
   useEffect(() => {
     if (!passedConversation && conversationId) {
       fetchConversation(conversationId);
@@ -267,17 +288,26 @@ export default function SummaryScreen({route, navigation}) {
           </View>
         )}
 
-        {conversation.actionItems?.length > 0 && (
-          <View style={styles.section}>
-            <SectionHeader
-              title="Action Items"
-              count={conversation.actionItems.length}
-            />
-            {conversation.actionItems.map((item, index) => (
-              <ActionItem key={index} text={item} />
-            ))}
-          </View>
-        )}
+        {conversation.actionItems?.length > 0 && (() => {
+          const completedCount = conversation.actionItems.filter(item => item.done).length;
+          const totalCount = conversation.actionItems.length;
+          return (
+            <View style={styles.section}>
+              <SectionHeader
+                title="Action Items"
+                count={`${completedCount}/${totalCount}`}
+              />
+              {conversation.actionItems.map((item, index) => (
+                <ActionItem 
+                  key={index} 
+                  text={item.text || item} 
+                  done={item.done} 
+                  onToggle={() => handleToggleActionItem(index)} 
+                />
+              ))}
+            </View>
+          );
+        })()}
 
         {conversation.entities?.length > 0 && (
           <View style={styles.section}>
@@ -420,6 +450,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: spacing.sm,
+    flexWrap: 'wrap',
   },
   entityDivider: {
     borderBottomWidth: 1,
@@ -429,6 +460,7 @@ const styles = StyleSheet.create({
     ...typography.body,
     color: colors.textSecondary,
     flex: 1,
+    minWidth: '50%',
   },
   keywordsRow: {
     flexDirection: 'row',

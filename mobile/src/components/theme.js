@@ -1,3 +1,8 @@
+import { Dimensions } from 'react-native';
+
+const { width } = Dimensions.get('window');
+const scale = size => Math.round((width / 375) * size);
+
 export const colors = {
   // Brand
   primary: '#4F46E5',
@@ -40,14 +45,14 @@ export const colors = {
 };
 
 export const typography = {
-  h1: {fontSize: 28, fontWeight: '700', color: colors.textPrimary},
-  h2: {fontSize: 22, fontWeight: '600', color: colors.textPrimary},
-  h3: {fontSize: 18, fontWeight: '600', color: colors.textPrimary},
-  h4: {fontSize: 16, fontWeight: '600', color: colors.textPrimary},
-  body: {fontSize: 15, fontWeight: '400', color: colors.textPrimary, lineHeight: 24},
-  bodySmall: {fontSize: 13, fontWeight: '400', color: colors.textSecondary, lineHeight: 20},
-  caption: {fontSize: 12, fontWeight: '400', color: colors.textTertiary},
-  label: {fontSize: 12, fontWeight: '600', letterSpacing: 0.5},
+  h1: {fontSize: scale(28), fontWeight: '700', color: colors.textPrimary},
+  h2: {fontSize: scale(22), fontWeight: '600', color: colors.textPrimary},
+  h3: {fontSize: scale(18), fontWeight: '600', color: colors.textPrimary},
+  h4: {fontSize: scale(16), fontWeight: '600', color: colors.textPrimary},
+  body: {fontSize: scale(15), fontWeight: '400', color: colors.textPrimary, lineHeight: scale(24)},
+  bodySmall: {fontSize: scale(13), fontWeight: '400', color: colors.textSecondary, lineHeight: scale(20)},
+  caption: {fontSize: scale(12), fontWeight: '400', color: colors.textTertiary},
+  label: {fontSize: scale(12), fontWeight: '600', letterSpacing: 0.5},
 };
 
 export const spacing = {xs: 4, sm: 8, md: 16, lg: 24, xl: 32, xxl: 48};

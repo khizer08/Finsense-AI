@@ -210,15 +210,35 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     marginBottom: spacing.sm,
   },
-  actionDot: {
-    width: 8,
-    height: 8,
+  actionItemDone: {
+    backgroundColor: colors.surfaceSecondary,
+    borderColor: colors.border,
+  },
+  actionCheckbox: {
+    width: 20,
+    height: 20,
     borderRadius: 4,
-    backgroundColor: colors.actionDot,
-    marginTop: 6,
+    borderWidth: 2,
+    borderColor: colors.actionDot,
     marginRight: 10,
+    marginTop: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionCheckboxDone: {
+    backgroundColor: colors.actionDot,
+    borderColor: colors.actionDot,
+  },
+  actionCheckmark: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
   },
   actionText: { ...typography.body, color: colors.actionText, flex: 1 },
+  actionTextDone: {
+    textDecorationLine: 'line-through',
+    color: colors.textTertiary,
+  },
 
   // Card
   card: {

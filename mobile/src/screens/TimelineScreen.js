@@ -20,12 +20,14 @@ import {colors, typography, spacing, radius, shadows} from '../components/theme'
 
 // ─── Conversation card ────────────────────────────────────────────────────────
 function ConversationCard({item, onPress, onDelete}) {
+  const allTasksDone = item.actionItems?.length > 0 && item.actionItems.every(task => task.done === true);
+
   return (
-    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.85}>
+    <TouchableOpacity style={[styles.card, allTasksDone && styles.cardDone]} onPress={onPress} activeOpacity={0.85}>
       {/* Header row */}
       <View style={styles.cardHeader}>
         <View>
-          <Text style={styles.cardDate}>{formatShortDate(item.createdAt)}</Text>
+          <Text style={[styles.cardDate, allTasksDone && styles.textMuted]}>{formatShortDate(item.createdAt)}</Text>
           <Text style={styles.cardTime}>{formatTime(item.createdAt)}</Text>
         </View>
         <TouchableOpacity
@@ -38,7 +40,7 @@ function ConversationCard({item, onPress, onDelete}) {
 
       {/* Summary preview */}
       {!!item.summary && (
-        <Text style={styles.summary} numberOfLines={2}>
+        <Text style={[styles.summary, allTasksDone && styles.textMuted]} numberOfLines={2}>
           {item.summary}
         </Text>
       )}
@@ -57,13 +59,13 @@ function ConversationCard({item, onPress, onDelete}) {
 
       {/* First action item preview */}
       {item.actionItems?.length > 0 && (
-        <View style={styles.actionPreview}>
+        <View style={[styles.actionPreview, allTasksDone && styles.actionPreviewDone]}>
           <Text style={styles.actionPreviewIcon}>✅</Text>
-          <Text style={styles.actionPreviewText} numberOfLines={1}>
-            {item.actionItems[0]}
+          <Text style={[styles.actionPreviewText, allTasksDone && styles.actionPreviewTextDone]} numberOfLines={1}>
+            {item.actionItems[0].text || item.actionItems[0]}
           </Text>
           {item.actionItems.length > 1 && (
-            <Text style={styles.actionPreviewMore}>
+            <Text style={[styles.actionPreviewMore, allTasksDone && styles.actionPreviewTextDone]}>
               +{item.actionItems.length - 1}
             </Text>
           )}
@@ -266,6 +268,13 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
     ...shadows.sm,
   },
+  cardDone: {
+    opacity: 0.6,
+    backgroundColor: colors.surfaceSecondary,
+  },
+  textMuted: {
+    color: colors.textTertiary,
+  },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -311,5 +320,14 @@ const styles = StyleSheet.create({
     color: colors.actionText,
     marginLeft: 4,
     fontWeight: '600',
+  },
+  actionPreviewDone: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: colors.divider,
+  },
+  actionPreviewTextDone: {
+    color: colors.textTertiary,
+    textDecorationLine: 'line-through',
   },
 });
