@@ -337,3 +337,7 @@ It is registered at the top of `index.js` — do not move it.
 **Network error on real device**
 Set `BASE_URL` in `mobile/src/services/api.js` to your machine's LAN IP, not `localhost`.
 Both device and machine must be on the same WiFi network.
+
+
+# issues:-
+1.Check the working first.....
