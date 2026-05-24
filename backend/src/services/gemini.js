@@ -6,6 +6,7 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite';
+const GEMINI_RETRIES = Number(process.env.GEMINI_RETRIES || 1);
 
 const VALID_ENTITY_TYPES = new Set([
   'SIP',
@@ -262,18 +263,27 @@ async function _generateAndClean(prompt, transcriptLength = 0) {
   const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
 
   let raw;
-  try {
-    console.log(`[Gemini] Calling ${GEMINI_MODEL} API with transcript length:`, transcriptLength);
-    const result = await model.generateContent(prompt);
-    raw = result.response.text().trim();
-    console.log('[Gemini] API response received:', raw.substring(0, 120) + '...');
-  } catch (err) {
-    console.error('[Gemini] API error:', err);
-    console.error('[Gemini] API key present:', !!GEMINI_API_KEY);
-    throw new Error('Gemini API call failed: ' + (err.message || 'Unknown Gemini error'));
+  const attempts = Math.max(1, GEMINI_RETRIES + 1);
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      console.log(`[Gemini] Calling ${GEMINI_MODEL} API with transcript length:`, transcriptLength);
+      if (attempt > 1) {
+        console.log(`[Gemini] Retry ${attempt - 1}/${attempts - 1}`);
+      }
+      const result = await model.generateContent(prompt);
+      raw = result.response.text().trim();
+      console.log('[Gemini] API response received:', raw.substring(0, 120) + '...');
+      break;
+    } catch (err) {
+      console.error('[Gemini] API error:', err.message || err);
+      console.error('[Gemini] API key present:', !!GEMINI_API_KEY);
+      if (attempt === attempts || !_isRetryableGeminiError(err)) {
+        throw new Error('Gemini API call failed: ' + (err.message || 'Unknown Gemini error'));
+      }
+    }
   }
 
-  return raw
+  return String(raw || '')
     .replace(/^```json\s*/i, '')
     .replace(/^```\s*/i, '')
     .replace(/```\s*$/i, '')
@@ -456,15 +466,30 @@ function _parseGeminiJson(cleaned) {
   try {
     return JSON.parse(cleaned);
   } catch (err) {
-    const start = cleaned.indexOf('{');
-    const end = cleaned.lastIndexOf('}');
+    const jsonBlock = cleaned.match(/```(?:json)?\s*([\s\S]*?)```/i);
+    const source = jsonBlock ? jsonBlock[1] : cleaned;
+    const start = source.indexOf('{');
+    const end = source.lastIndexOf('}');
 
     if (start === -1 || end === -1 || end <= start) {
       throw err;
     }
 
-    return JSON.parse(cleaned.slice(start, end + 1));
+    return JSON.parse(source.slice(start, end + 1));
   }
+}
+
+function _isRetryableGeminiError(err) {
+  const message = String(err?.message || err || '');
+  const status = err?.status || err?.statusCode;
+  return (
+    status === 429 ||
+    status === 500 ||
+    status === 502 ||
+    status === 503 ||
+    status === 504 ||
+    /timeout|temporarily|unavailable|rate limit|quota/i.test(message)
+  );
 }
 
 function _normalizeEntityType(type) {

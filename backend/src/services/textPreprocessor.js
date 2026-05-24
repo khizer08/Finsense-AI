@@ -23,6 +23,9 @@ const MULTIPLIER_RULES = [
 
 // ─── Word-level abbreviations ────────────────────────────────────────────────
 const WORD_REPLACEMENTS = [
+  [/\bemi\b/gi, 'EMI'],
+  [/\bsip\b/gi, 'SIP'],
+  [/\bfd\b/gi, 'Fixed Deposit'],
   [/\bamt\b/gi, 'amount'],
   [/\btxn\b/gi, 'transaction'],
   [/\btxns\b/gi, 'transactions'],
@@ -45,6 +48,11 @@ const WORD_REPLACEMENTS = [
   [/\bmax\b/gi, 'maximum'],
 ];
 
+const FILLER_PATTERNS = [
+  /\b(?:um+|uh+|erm+|hmm+)\b/gi,
+  /\b(?:you know|kind of|sort of)\b/gi,
+];
+
 /**
  * Format a number with Indian-style comma separation.
  * 12345678 → "1,23,45,678" — BUT we use standard comma for simplicity:
@@ -64,9 +72,11 @@ function _formatNumber(n) {
 function expandShorthand(text) {
   if (!text || typeof text !== 'string') return text || '';
 
-  let result = text;
+  let result = _normalizeWhitespace(text);
+  result = _normalizeCurrency(result);
+  result = _removeFillers(result);
 
-  // 1. Expand multiplier shorthand (50k → 50,000)
+  // 1. Expand multiplier shorthand (50k -> 50,000)
   for (const {pattern, multiplier} of MULTIPLIER_RULES) {
     result = result.replace(pattern, (_, numStr) => {
       const num = parseFloat(numStr);
@@ -80,7 +90,49 @@ function expandShorthand(text) {
     result = result.replace(regex, replacement);
   }
 
-  return result;
+  result = _improvePunctuation(result);
+  return _normalizeWhitespace(result);
 }
 
-module.exports = {expandShorthand};
+function preprocessText(text) {
+  return expandShorthand(text);
+}
+
+function _normalizeWhitespace(text) {
+  return String(text || '')
+    .replace(/\r?\n+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function _normalizeCurrency(text) {
+  return text
+    .replace(/₹\s*/g, 'INR ')
+    .replace(/\brs\.?\s*/gi, 'INR ')
+    .replace(/\brupees?\b/gi, 'INR');
+}
+
+function _removeFillers(text) {
+  return FILLER_PATTERNS.reduce(
+    (result, pattern) => result.replace(pattern, ' '),
+    text,
+  );
+}
+
+function _improvePunctuation(text) {
+  let result = text
+    .replace(/\s+([,.!?])/g, '$1')
+    .replace(/([.!?])(?=\S)/g, '$1 ')
+    .replace(/,(?=\S)(?!\d)/g, ', ');
+
+  if (result && !/[.!?]$/.test(result)) {
+    result += '.';
+  }
+
+  return result.replace(/\s+([,.!?])/g, '$1');
+}
+
+module.exports = {
+  expandShorthand,
+  preprocessText,
+};

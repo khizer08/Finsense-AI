@@ -12,7 +12,17 @@ const path = require('path');
 
 const PLACEHOLDER_MAX_BYTES = 1024;
 const WHISPER_MODEL = process.env.WHISPER_MODEL || 'base';
-const WHISPER_TIMEOUT_MS = 180_000; // 3 minutes
+const WHISPER_TIMEOUT_MS = Number(process.env.WHISPER_TIMEOUT_MS || 180_000);
+const WHISPER_RETRIES = Number(process.env.WHISPER_RETRIES || 1);
+
+class TranscriptionError extends Error {
+  constructor(message, code = 'TRANSCRIPTION_FAILED', status = 500) {
+    super(message);
+    this.name = 'TranscriptionError';
+    this.code = code;
+    this.status = status;
+  }
+}
 
 /**
  * Transcribe an audio file using the Whisper CLI.
@@ -22,7 +32,20 @@ const WHISPER_TIMEOUT_MS = 180_000; // 3 minutes
  */
 async function transcribeAudio(filePath) {
   if (!fs.existsSync(filePath)) {
-    throw new Error(`Audio file not found: ${filePath}`);
+    throw new TranscriptionError(
+      'Audio file was not found on the backend.',
+      'AUDIO_FILE_NOT_FOUND',
+      400,
+    );
+  }
+
+  const stats = fs.statSync(filePath);
+  if (stats.size === 0) {
+    throw new TranscriptionError(
+      'Uploaded audio file is empty.',
+      'EMPTY_AUDIO_FILE',
+      400,
+    );
   }
 
   if (_isPlaceholderAudio(filePath)) {
@@ -42,39 +65,65 @@ async function transcribeAudio(filePath) {
   console.log(`[Whisper] Transcribing: ${filePath} (model: ${WHISPER_MODEL})`);
 
   try {
-    await _runWhisperCli(filePath, outputDir);
+    await _runWhisperCliWithRetry(filePath, outputDir);
   } catch (err) {
     console.error('[Whisper] CLI error:', err.message);
-    throw new Error('Whisper transcription failed: ' + err.message);
-  }
-
-  // Read the generated .txt file
-  const txtPath = path.join(outputDir, `${baseName}.txt`);
-  let transcript = '';
-
-  if (fs.existsSync(txtPath)) {
-    transcript = fs.readFileSync(txtPath, 'utf8').trim();
-    // Clean up generated files
     _cleanupWhisperOutputs(outputDir, baseName);
+    if (err instanceof TranscriptionError) {
+      throw err;
+    }
+    throw new TranscriptionError(
+      'Whisper transcription failed: ' + err.message,
+      'WHISPER_FAILED',
+      502,
+    );
   }
 
-  if (!transcript) {
-    console.warn('[Whisper] Empty transcript returned');
-    transcript = '[Inaudible or silent recording]';
-  }
+  const result = _readWhisperResult(outputDir, baseName);
+  _cleanupWhisperOutputs(outputDir, baseName);
 
-  // Try to read duration from the .json output if available
-  const duration = _readDurationFromJson(outputDir, baseName);
+  if (!result.transcript) {
+    throw new TranscriptionError(
+      'Whisper returned an empty transcript. Please try a clearer or longer recording.',
+      'EMPTY_TRANSCRIPT',
+      422,
+    );
+  }
 
   console.log(
-    `[Whisper] Done: ${transcript.length} chars | duration=${duration}s`,
+    `[Whisper] Done: ${result.transcript.length} chars | duration=${result.duration}s`,
   );
 
   return {
-    transcript,
-    language: 'en',
-    duration,
+    transcript: result.transcript,
+    language: result.language || 'en',
+    duration: result.duration,
   };
+}
+
+async function _runWhisperCliWithRetry(filePath, outputDir) {
+  let lastError;
+  const attempts = Math.max(1, WHISPER_RETRIES + 1);
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      if (attempt > 1) {
+        console.log(`[Whisper] Retry ${attempt - 1}/${attempts - 1}`);
+      }
+      return await _runWhisperCli(filePath, outputDir);
+    } catch (err) {
+      lastError = err;
+      if (
+        err.code === 'WHISPER_NOT_FOUND' ||
+        err.code === 'FFMPEG_NOT_FOUND' ||
+        err.code === 'WHISPER_TIMEOUT'
+      ) {
+        break;
+      }
+    }
+  }
+
+  throw lastError;
 }
 
 /**
@@ -86,22 +135,32 @@ function _runWhisperCli(filePath, outputDir) {
       filePath,
       '--model', WHISPER_MODEL,
       '--output_dir', outputDir,
-      '--output_format', 'txt',
+      '--output_format', 'json',
       '--fp16', 'False',
       '--verbose', 'False',
     ];
 
     const proc = execFile('whisper', args, { timeout: WHISPER_TIMEOUT_MS }, (error, stdout, stderr) => {
       if (error) {
-        // Check if whisper is not installed
         if (error.code === 'ENOENT') {
           return reject(
-            new Error(
+            new TranscriptionError(
               'Whisper CLI not found. Install with: pip install openai-whisper',
+              'WHISPER_NOT_FOUND',
+              503,
             ),
           );
         }
-        return reject(new Error(stderr || error.message));
+        if (error.killed || error.signal === 'SIGTERM') {
+          return reject(
+            new TranscriptionError(
+              'Whisper transcription timed out.',
+              'WHISPER_TIMEOUT',
+              504,
+            ),
+          );
+        }
+        return reject(_mapWhisperError(stderr || error.message));
       }
       resolve(stdout);
     });
@@ -109,13 +168,36 @@ function _runWhisperCli(filePath, outputDir) {
     proc.on('error', err => {
       if (err.code === 'ENOENT') {
         reject(
-          new Error(
+          new TranscriptionError(
             'Whisper CLI not found. Install with: pip install openai-whisper',
+            'WHISPER_NOT_FOUND',
+            503,
           ),
         );
       }
     });
   });
+}
+
+function _mapWhisperError(message) {
+  const safeMessage = String(message || 'Unknown Whisper error').trim();
+  if (/ffmpeg/i.test(safeMessage) && /(not found|no such file|not recognized)/i.test(safeMessage)) {
+    return new TranscriptionError(
+      'ffmpeg is required for Whisper transcription but was not found.',
+      'FFMPEG_NOT_FOUND',
+      503,
+    );
+  }
+
+  if (/invalid data|could not find codec|failed to load audio|no such file/i.test(safeMessage)) {
+    return new TranscriptionError(
+      'Uploaded audio could not be decoded. Please try another recording.',
+      'INVALID_AUDIO_FILE',
+      400,
+    );
+  }
+
+  return new TranscriptionError(safeMessage, 'WHISPER_FAILED', 502);
 }
 
 function _isPlaceholderAudio(filePath) {
@@ -129,6 +211,47 @@ function _isPlaceholderAudio(filePath) {
     content.toString('utf8').startsWith('RECORDING_PLACEHOLDER') ||
     stats.size < PLACEHOLDER_MAX_BYTES
   );
+}
+
+function _readWhisperResult(outputDir, baseName) {
+  const fallback = {
+    transcript: '',
+    language: 'en',
+    duration: 0,
+  };
+
+  try {
+    const jsonPath = path.join(outputDir, `${baseName}.json`);
+    if (fs.existsSync(jsonPath)) {
+      const data = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+      const segments = data.segments || [];
+      const transcript =
+        typeof data.text === 'string'
+          ? data.text.trim()
+          : segments.map(segment => segment.text).join(' ').trim();
+      const duration =
+        segments.length > 0
+          ? Math.round(segments[segments.length - 1].end * 100) / 100
+          : 0;
+      return {
+        transcript,
+        language: data.language || 'en',
+        duration,
+      };
+    }
+
+    const txtPath = path.join(outputDir, `${baseName}.txt`);
+    if (fs.existsSync(txtPath)) {
+      return {
+        ...fallback,
+        transcript: fs.readFileSync(txtPath, 'utf8').trim(),
+      };
+    }
+  } catch (err) {
+    console.warn('[Whisper] Failed to read Whisper output:', err.message);
+  }
+
+  return fallback;
 }
 
 function _readDurationFromJson(outputDir, baseName) {
@@ -159,4 +282,4 @@ function _cleanupWhisperOutputs(outputDir, baseName) {
   }
 }
 
-module.exports = { transcribeAudio };
+module.exports = { transcribeAudio, TranscriptionError };

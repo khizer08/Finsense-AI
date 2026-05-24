@@ -5,7 +5,7 @@ const fs = require('fs');
 const authMiddleware = require('../middleware/auth');
 const Conversation = require('../models/Conversation');
 const { transcribeAudio } = require('../services/whisper');
-const { expandShorthand } = require('../services/textPreprocessor');
+const { preprocessText } = require('../services/textPreprocessor');
 const { extractInsights, generateFinancialPlan } = require('../services/gemini');
 const { buildReminderJobs } = require('../services/reminderPlanner');
 
@@ -26,9 +26,12 @@ const upload = multer({
   storage,
   limits: { fileSize: 100 * 1024 * 1024 }, // 100 MB
   fileFilter: (_req, file, cb) => {
-    const allowed = /audio\/(mp4|m4a|mpeg|wav|ogg|webm)|video\/mp4/;
+    const allowed = /audio\/(mp4|m4a|mpeg|wav|ogg|webm|aac|x-m4a|3gpp)|video\/mp4/;
     if (allowed.test(file.mimetype)) return cb(null, true);
-    cb(new Error('Only audio files are allowed'));
+    const err = new Error('Only audio files are allowed');
+    err.code = 'INVALID_AUDIO_TYPE';
+    err.status = 400;
+    cb(err);
   },
 });
 
@@ -36,9 +39,9 @@ const upload = multer({
 router.use(authMiddleware);
 
 // ─── POST /api/conversations/upload ─────────────────────────────────────────
-router.post('/upload', upload.single('audio'), async (req, res) => {
+router.post('/upload', _handleAudioUpload, async (req, res) => {
   if (!req.file) {
-    return res.status(400).json({ error: 'No audio file provided' });
+    return _sendError(res, 400, 'NO_AUDIO_FILE', 'No audio file provided');
   }
 
   const filePath = req.file.path;
@@ -58,7 +61,13 @@ router.post('/upload', upload.single('audio'), async (req, res) => {
     });
   } catch (err) {
     console.error('[Conversations] DB create error:', err);
-    return res.status(500).json({ error: 'Failed to create conversation record' });
+    _cleanupUploadedFile(filePath);
+    return _sendError(
+      res,
+      500,
+      'CONVERSATION_CREATE_FAILED',
+      'Failed to create conversation record',
+    );
   }
 
   // Run transcription + insight extraction asynchronously
@@ -68,7 +77,7 @@ router.post('/upload', upload.single('audio'), async (req, res) => {
     const { transcript: rawTranscript, language, duration } = await transcribeAudio(filePath);
 
     // 1b. Preprocess transcript — expand shorthand (50k → 50,000, etc.)
-    const transcript = expandShorthand(rawTranscript);
+    const transcript = preprocessText(rawTranscript);
 
     // 2. Gemini insight extraction
     const {
@@ -103,7 +112,7 @@ router.post('/upload', upload.single('audio'), async (req, res) => {
     await conversation.save();
 
     // 4. Clean up uploaded file (save disk space)
-    fs.unlink(filePath, () => { });
+    _cleanupUploadedFile(filePath);
 
     return res.status(201).json({
       message: 'Conversation processed successfully',
@@ -116,10 +125,14 @@ router.post('/upload', upload.single('audio'), async (req, res) => {
     conversation.status = 'error';
     conversation.errorMessage = err.message;
     await conversation.save().catch(() => { });
+    _cleanupUploadedFile(filePath);
 
-    return res.status(500).json({
-      error: 'Failed to process audio: ' + (err.message || 'Unknown processing error'),
-    });
+    return _sendError(
+      res,
+      err.status || 500,
+      err.code || 'AUDIO_PROCESSING_FAILED',
+      'Failed to process audio: ' + (err.message || 'Unknown processing error'),
+    );
   }
 });
 
@@ -271,6 +284,43 @@ router.patch('/:id/action-items/:index', async (req, res) => {
 });
 
 module.exports = router;
+
+function _handleAudioUpload(req, res, next) {
+  upload.single('audio')(req, res, err => {
+    if (!err) {
+      return next();
+    }
+
+    console.error('[Conversations] upload middleware error:', err.message);
+    const status = err.status || (err.code === 'LIMIT_FILE_SIZE' ? 413 : 400);
+    const code = err.code || 'UPLOAD_FAILED';
+    const message =
+      err.code === 'LIMIT_FILE_SIZE'
+        ? 'Audio file is too large. Maximum upload size is 100 MB.'
+        : err.message || 'Audio upload failed';
+
+    return _sendError(res, status, code, message);
+  });
+}
+
+function _sendError(res, status, code, message) {
+  return res.status(status).json({
+    error: message,
+    code,
+  });
+}
+
+function _cleanupUploadedFile(filePath) {
+  if (!filePath) {
+    return;
+  }
+
+  fs.unlink(filePath, err => {
+    if (err && err.code !== 'ENOENT') {
+      console.warn('[Conversations] Failed to clean uploaded file:', err.message);
+    }
+  });
+}
 
 function _toUtcOffsetString(offsetMinutes) {
   if (!Number.isFinite(offsetMinutes)) {
