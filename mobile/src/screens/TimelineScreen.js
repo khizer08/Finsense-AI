@@ -20,16 +20,23 @@ import {colors, typography, spacing, radius, shadows} from '../components/theme'
 
 // ─── Conversation card ────────────────────────────────────────────────────────
 function ConversationCard({item, onPress, onDelete}) {
-  const allTasksDone = item.actionItems?.length > 0 && item.actionItems.every(task => task.done === true);
+  const taskStats = _getTaskStats(item.actionItems);
+  const allTasksDone = taskStats.total > 0 && taskStats.completed === taskStats.total;
+  const firstTask = taskStats.items[0];
 
   return (
     <TouchableOpacity style={[styles.card, allTasksDone && styles.cardDone]} onPress={onPress} activeOpacity={0.85}>
       {/* Header row */}
       <View style={styles.cardHeader}>
-        <View>
+        <View style={styles.dateGroup}>
           <Text style={[styles.cardDate, allTasksDone && styles.textMuted]}>{formatShortDate(item.createdAt)}</Text>
           <Text style={styles.cardTime}>{formatTime(item.createdAt)}</Text>
         </View>
+        {allTasksDone && (
+          <View style={styles.completedBadge}>
+            <Text style={styles.completedBadgeText}>Completed</Text>
+          </View>
+        )}
         <TouchableOpacity
           onPress={onDelete}
           hitSlop={{top: 10, bottom: 10, left: 10, right: 10}}
@@ -58,21 +65,52 @@ function ConversationCard({item, onPress, onDelete}) {
       )}
 
       {/* First action item preview */}
-      {item.actionItems?.length > 0 && (
+      {taskStats.total > 0 && (
         <View style={[styles.actionPreview, allTasksDone && styles.actionPreviewDone]}>
-          <Text style={styles.actionPreviewIcon}>✅</Text>
-          <Text style={[styles.actionPreviewText, allTasksDone && styles.actionPreviewTextDone]} numberOfLines={1}>
-            {item.actionItems[0].text || item.actionItems[0]}
+          <View
+            style={[
+              styles.actionPreviewCheckbox,
+              firstTask.done && styles.actionPreviewCheckboxDone,
+            ]}>
+            {firstTask.done && <Text style={styles.actionPreviewCheckmark}>✓</Text>}
+          </View>
+          <Text
+            style={[styles.actionPreviewText, firstTask.done && styles.actionPreviewTextDone]}
+            numberOfLines={1}>
+            {firstTask.text}
           </Text>
-          {item.actionItems.length > 1 && (
-            <Text style={[styles.actionPreviewMore, allTasksDone && styles.actionPreviewTextDone]}>
-              +{item.actionItems.length - 1}
-            </Text>
-          )}
+          <Text style={[styles.actionProgressText, allTasksDone && styles.actionPreviewTextDone]}>
+            {taskStats.completed}/{taskStats.total}
+          </Text>
         </View>
       )}
     </TouchableOpacity>
   );
+}
+
+function _getTaskStats(actionItems = []) {
+  const items = Array.isArray(actionItems)
+    ? actionItems
+        .map(item => {
+          if (typeof item === 'string') {
+            return {text: item, done: false};
+          }
+          if (item && typeof item === 'object') {
+            return {
+              text: item.text || item.value || '',
+              done: item.done === true,
+            };
+          }
+          return null;
+        })
+        .filter(item => item && item.text)
+    : [];
+
+  return {
+    items,
+    total: items.length,
+    completed: items.filter(item => item.done).length,
+  };
 }
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
@@ -280,9 +318,23 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     marginBottom: spacing.sm,
+    gap: spacing.sm,
   },
+  dateGroup: {flex: 1},
   cardDate: {...typography.h4},
   cardTime: {...typography.caption, color: colors.textTertiary, marginTop: 2},
+  completedBadge: {
+    backgroundColor: colors.surfaceSecondary,
+    borderRadius: radius.full,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  completedBadgeText: {
+    ...typography.label,
+    color: colors.textTertiary,
+  },
   deleteBtn: {padding: spacing.xs},
   deleteIcon: {fontSize: 16},
 
@@ -310,15 +362,34 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
   actionPreviewIcon: {fontSize: 12, marginRight: 6},
+  actionPreviewCheckbox: {
+    width: 18,
+    height: 18,
+    borderRadius: 4,
+    borderWidth: 1.5,
+    borderColor: colors.actionDot,
+    marginRight: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionPreviewCheckboxDone: {
+    backgroundColor: colors.actionDot,
+  },
+  actionPreviewCheckmark: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
+  },
   actionPreviewText: {
     ...typography.bodySmall,
     color: colors.actionText,
     flex: 1,
+    flexShrink: 1,
   },
-  actionPreviewMore: {
+  actionProgressText: {
     ...typography.caption,
     color: colors.actionText,
-    marginLeft: 4,
+    marginLeft: spacing.sm,
     fontWeight: '600',
   },
   actionPreviewDone: {

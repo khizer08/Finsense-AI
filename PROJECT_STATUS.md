@@ -52,50 +52,73 @@ Calls
 
 ### Phase 1 - Backend Stabilization
 
+Status: Stabilized with placeholder-upload verification
+
+Goals:
+
+Completed:
+
+- Whisper runs through the backend service using `child_process.execFile`.
+- Whisper execution has timeout protection and retry handling.
+- Missing Whisper, missing ffmpeg, invalid audio, empty audio, timeout, and empty transcript cases return structured errors.
+- Whisper output is read from JSON when available, with duration and language metadata preserved.
+- Whisper-generated sidecar files are cleaned after processing.
+- Uploaded audio files are cleaned after success and failure paths.
+- Upload middleware now returns stable `{ error, code }` responses while preserving the existing `error` field.
+- Text preprocessing now normalizes whitespace, currency symbols, filler words, punctuation, and financial shorthand.
+- Preprocessing handles examples such as `50k`, `2L`, `1cr`, `5 lakhs`, `emi`, `sip`, `fd`, `txn`, `amt`, `mo`, and `yr`.
+- Gemini calls now retry transient failures.
+- Gemini JSON parsing is more tolerant of fenced or extra-text responses.
+- `/api/conversations/upload` continues to return `{ message, conversation }` on success.
+
+Exit checks:
+
+- Backend health endpoint verified on `http://localhost:3000/health`.
+- `ffmpeg -version` verified locally.
+- `whisper --help` verified locally with `PYTHONIOENCODING=utf-8`.
+- Preprocessing examples verified locally:
+  - `50k` -> `50,000`
+  - `2L` -> `2,00,000`
+  - `1cr` -> `1,00,00,000`
+  - `5 lakhs rs` -> `5,00,000 INR`
+  - `emi sip fd txn amt mo yr` -> `EMI SIP Fixed Deposit transaction amount month year`
+- Authenticated placeholder upload verified through `POST /api/conversations/upload`.
+- Placeholder upload created a `done` conversation and returned the existing success response shape.
+
+Remaining verification:
+
+- Run one real spoken-audio upload from the Android app to verify Whisper model execution with an actual recording.
+- Confirm the saved MongoDB document from a real recording contains transcript, summary, entities, action items, and reminder jobs.
+
+### Phase 2 - Task And Reminder System
+
 Status: In progress
 
 Goals:
 
-- Finalize Whisper CLI integration.
-- Keep transcription entirely inside the backend.
-- Use `child_process.execFile` safely.
-- Handle Windows paths safely.
-- Add timeout protection.
-- Clean temporary files after processing.
-- Improve text preprocessing for Indian financial shorthand.
-- Improve Gemini JSON fallback behavior.
-- Preserve `/api/conversations/upload` response compatibility.
-- Add structured errors and useful logging.
+Completed:
+
+- Summary screen normalizes legacy string action items before rendering and toggling.
+- Summary screen keeps the existing `3/5` style progress badge for action items.
+- Timeline screen normalizes old and new action item shapes before display.
+- Timeline screen now shows task progress such as `3/5` on conversation cards.
+- Timeline screen shows a completed indicator when all tasks are done.
+- Timeline cards for fully completed conversations remain faded/muted.
+- Completed task previews use muted strikethrough styling.
+- PATCH task toggle endpoint verified through the real API with a temporary test conversation.
+
+Remaining:
+
+- Verify reminder scheduling on a real Android device with Notifee trigger notifications.
+- Verify reminders generated from a real Gemini extraction are saved in MongoDB and scheduled locally.
+- Verify notification actions can mark reminders done and cancel pending trigger notifications.
 
 Exit checks:
 
-- Backend starts.
-- Upload endpoint accepts audio.
-- Whisper produces a transcript.
-- Preprocessing runs before Gemini.
-- Gemini output saves to MongoDB.
-- Existing frontend still receives the same response shape.
-
-### Phase 2 - Task And Reminder System
-
-Status: Pending Phase 1 stabilization
-
-Goals:
-
-- Finalize `actionItems: [{ text, done }]`.
-- Ensure old conversations render safely.
-- Ensure PATCH task toggle persists.
-- Show progress such as `3/5 completed`.
-- Grey out completed task rows.
-- Fade completed conversations in timeline.
-- Parse reminder dates safely.
-- Schedule local reminder notifications from detected deadlines.
-
-Exit checks:
-
-- Task toggle works end to end.
-- Old conversations still render.
-- Reminders schedule without duplicates.
+- Task toggle works end to end through `PATCH /api/conversations/:id/action-items/:index`.
+- Old string action items are handled safely in Summary and Timeline UI.
+- Android debug build passes after task UI changes.
+- Reminder scheduling still requires device validation.
 
 ### Phase 3 - Notification Flow
 

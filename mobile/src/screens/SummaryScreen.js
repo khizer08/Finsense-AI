@@ -99,11 +99,11 @@ export default function SummaryScreen({route, navigation}) {
 
   const handleToggleActionItem = async (index) => {
     try {
-      const currentItem = conversation.actionItems[index];
+      const currentItem = _normalizeActionItem(conversation.actionItems[index]);
       const newDoneState = !currentItem.done;
       
       const updatedActionItems = [...conversation.actionItems];
-      updatedActionItems[index] = { ...currentItem, done: newDoneState };
+      updatedActionItems[index] = {...currentItem, done: newDoneState};
       setConversation({ ...conversation, actionItems: updatedActionItems });
 
       const res = await api.patch(`/api/conversations/${conversation._id}/action-items/${index}`, {
@@ -289,7 +289,8 @@ export default function SummaryScreen({route, navigation}) {
         )}
 
         {conversation.actionItems?.length > 0 && (() => {
-          const completedCount = conversation.actionItems.filter(item => item.done).length;
+          const normalizedItems = conversation.actionItems.map(_normalizeActionItem);
+          const completedCount = normalizedItems.filter(item => item.done).length;
           const totalCount = conversation.actionItems.length;
           return (
             <View style={styles.section}>
@@ -297,10 +298,10 @@ export default function SummaryScreen({route, navigation}) {
                 title="Action Items"
                 count={`${completedCount}/${totalCount}`}
               />
-              {conversation.actionItems.map((item, index) => (
+              {normalizedItems.map((item, index) => (
                 <ActionItem 
                   key={index} 
-                  text={item.text || item} 
+                  text={item.text} 
                   done={item.done} 
                   onToggle={() => handleToggleActionItem(index)} 
                 />
@@ -377,6 +378,21 @@ export default function SummaryScreen({route, navigation}) {
       {creatingPlan && <LoadingOverlay message="Creating your plan with Gemini…" />}
     </SafeAreaView>
   );
+}
+
+function _normalizeActionItem(item) {
+  if (typeof item === 'string') {
+    return {text: item, done: false};
+  }
+
+  if (item && typeof item === 'object') {
+    return {
+      text: item.text || item.value || '',
+      done: item.done === true,
+    };
+  }
+
+  return {text: '', done: false};
 }
 
 const styles = StyleSheet.create({
