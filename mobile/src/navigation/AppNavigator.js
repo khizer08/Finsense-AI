@@ -1,11 +1,13 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {NavigationContainer} from '@react-navigation/native';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
-import {Text, View} from 'react-native';
+import {Text, View, ActivityIndicator} from 'react-native';
 import {useAuth} from '../services/AuthContext';
 import {useCallNavigation} from '../hooks/useCallNavigation';
+import {hasCompletedOnboarding, markOnboardingCompleted} from '../services/PermissionService';
 import AuthScreen from '../screens/AuthScreen';
+import OnboardingScreen from '../screens/OnboardingScreen';
 import TimelineScreen from '../screens/TimelineScreen';
 import RecordScreen from '../screens/RecordScreen';
 import SummaryScreen from '../screens/SummaryScreen';
@@ -71,21 +73,61 @@ function MainTabs() {
 // ─── Root navigator ──────────────────────────────────────────────────────────
 export default function AppNavigator() {
   const {user, loading} = useAuth();
+  const [onboardingCompleted, setOnboardingCompleted] = useState(null);
+  const [checkingOnboarding, setCheckingOnboarding] = useState(true);
+
+  useEffect(() => {
+    const checkOnboarding = async () => {
+      try {
+        const completed = await hasCompletedOnboarding();
+        setOnboardingCompleted(completed);
+      } catch (error) {
+        console.warn('[AppNavigator] Onboarding check failed:', error);
+        setOnboardingCompleted(false);
+      } finally {
+        setCheckingOnboarding(false);
+      }
+    };
+
+    checkOnboarding();
+  }, []);
+
+  if (loading || checkingOnboarding) {
+    return (
+      <View style={{flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background}}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
 
   return (
     <NavigationContainer>
       <Stack.Navigator screenOptions={{headerShown: false, animation: 'fade'}}>
-        {loading ? (
+        {!user ? (
+          <Stack.Screen name="Auth" component={AuthScreen} />
+        ) : !onboardingCompleted ? (
           <Stack.Screen
-            name="Splash"
-            component={() => (
-              <View style={{flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background}}>
-                <Text style={{...typography.title, color: colors.text}}>💰 FinSense AI</Text>
-              </View>
-            )}
+            name="Onboarding"
+            component={OnboardingScreen}
             options={{animationEnabled: false}}
+            listeners={{
+              focus: () => {
+                // OnboardingScreen will call its onComplete callback
+                // which will trigger markOnboardingCompleted
+              },
+            }}
+            initialParams={{
+              onComplete: async () => {
+                try {
+                  await markOnboardingCompleted();
+                  setOnboardingCompleted(true);
+                } catch (error) {
+                  console.warn('[AppNavigator] Mark onboarding failed:', error);
+                }
+              },
+            }}
           />
-        ) : user ? (
+        ) : (
           <>
             <Stack.Screen name="Main" component={MainTabs} />
             <Stack.Screen
@@ -99,8 +141,6 @@ export default function AppNavigator() {
               options={{animation: 'slide_from_right'}}
             />
           </>
-        ) : (
-          <Stack.Screen name="Auth" component={AuthScreen} />
         )}
       </Stack.Navigator>
     </NavigationContainer>

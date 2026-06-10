@@ -280,11 +280,14 @@ const styles = StyleSheet.create({
 
   // Mic button
   buttonArea: {
-    width: '45%',
+    width: '60%',
+    minWidth: 160,
+    maxWidth: 240,
     aspectRatio: 1,
     alignItems: 'center',
     justifyContent: 'center',
     marginVertical: spacing.xl,
+    alignSelf: 'center',
   },
   pulse: {
     position: 'absolute',

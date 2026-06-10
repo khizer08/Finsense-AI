@@ -296,7 +296,7 @@ const styles = StyleSheet.create({
   errorText: {...typography.bodySmall, color: '#991B1B'},
 
   // List
-  list: {paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl},
+  list: {paddingHorizontal: spacing.md, paddingBottom: spacing.xxl},
 
   // Card
   card: {
@@ -304,6 +304,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     padding: spacing.md,
     marginBottom: spacing.md,
+    overflow: 'hidden',
     ...shadows.sm,
   },
   cardDone: {
@@ -318,9 +319,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     marginBottom: spacing.sm,
-    gap: spacing.sm,
+    gap: spacing.xs,
+    flexWrap: 'wrap',
   },
-  dateGroup: {flex: 1},
+  dateGroup: {flex: 1, minWidth: 140},
   cardDate: {...typography.h4},
   cardTime: {...typography.caption, color: colors.textTertiary, marginTop: 2},
   completedBadge: {

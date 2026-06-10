@@ -413,21 +413,24 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
     backgroundColor: colors.surface,
+    minHeight: 56,
   },
   backBtn: {
     width: 44,
     height: 44,
     alignItems: 'flex-start',
     justifyContent: 'center',
+    paddingRight: spacing.sm,
   },
   backIcon: {fontSize: 24, color: colors.primary},
-  navTitle: {...typography.h4, flex: 1, textAlign: 'center'},
-  content: {padding: spacing.lg},
+  navTitle: {...typography.h4, flex: 1, textAlign: 'center', paddingHorizontal: spacing.sm},
+  content: {padding: spacing.lg, paddingBottom: spacing.xxl},
   date: {...typography.h3, marginBottom: spacing.xs},
   meta: {
     ...typography.bodySmall,
     color: colors.textTertiary,
     marginBottom: spacing.lg,
+    flexWrap: 'wrap',
   },
   summaryCard: {marginBottom: spacing.lg},
   summaryText: {
@@ -444,11 +447,12 @@ const styles = StyleSheet.create({
   reminderHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     marginBottom: spacing.xs,
-    gap: spacing.sm,
+    gap: spacing.xs,
+    flexWrap: 'wrap',
   },
-  reminderTitle: {...typography.h4, flex: 1},
+  reminderTitle: {...typography.h4, flex: 1, minWidth: 150},
   reminderDescription: {...typography.body, color: colors.textSecondary},
   reminderMeta: {
     ...typography.bodySmall,
@@ -464,8 +468,9 @@ const styles = StyleSheet.create({
   reminderBadgeText: {...typography.label, color: colors.primary},
   entityRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     paddingVertical: spacing.sm,
+    gap: spacing.md,
     flexWrap: 'wrap',
   },
   entityDivider: {
@@ -476,7 +481,7 @@ const styles = StyleSheet.create({
     ...typography.body,
     color: colors.textSecondary,
     flex: 1,
-    minWidth: '50%',
+    minWidth: 140,
   },
   keywordsRow: {
     flexDirection: 'row',
